@@ -1,0 +1,8 @@
+{
+  "name": "Magical Christmas Tree",
+  "description": "A 3D interactive particle Christmas tree with hand gesture controls, morphing animations, and photo wall features.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
