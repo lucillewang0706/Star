@@ -49,7 +49,7 @@
     
     .file-upload-overlay {
       position: absolute;
-      top: 20px;
+      top: 60px; /* Moved down slightly to avoid title */
       left: 20px;
       z-index: 40;
       opacity: 0;
@@ -74,11 +74,37 @@
       font-size: 1.5rem;
       transition: opacity 1s ease;
     }
+
+    /* Title Style */
+    .main-title {
+        position: absolute;
+        top: 20px;
+        left: 25px;
+        z-index: 30;
+        font-family: 'Times New Roman', serif;
+        font-size: 1.5rem;
+        color: #FFD700;
+        text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        pointer-events: none;
+        letter-spacing: 1px;
+    }
+    @media (max-width: 600px) {
+        .main-title {
+            font-size: 1.1rem;
+            left: 15px;
+            top: 15px;
+        }
+    }
   </style>
 </head>
 <body>
   <div id="loader">Loading Christmas Magic...</div>
   <div id="root"></div>
+
+  <!-- Main Title -->
+  <div class="main-title">
+      Merry Christmas & Happy New Year!
+  </div>
 
   <!-- Audio Element (Background Music) -->
   <audio id="bg-music" loop crossorigin="anonymous" style="display:none;">
@@ -277,7 +303,7 @@
       );
     };
 
-    // 2. Decorations (Text & Moon)
+    // 2. Decorations (Text & Sun)
     const Decorations = ({ shape }) => {
       const fontUrl = 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/fonts/helvetiker_regular.typeface.json';
 
@@ -332,24 +358,20 @@
 
       return (
         <group>
-          {/* Tree Topper (Moon) - Only visible in TREE state */}
+          {/* Tree Topper (Sun) - Only visible in TREE state */}
           <group visible={shape === SHAPES.TREE}>
             <Float speed={2} rotationIntensity={0.2} floatIntensity={0.5} position={[0, 5.2, 0]}>
-               {/* Smaller Crescent Moon */}
-               <Text3D 
-                  font={fontUrl} 
-                  size={0.35} 
-                  height={0.05}
-                  rotation={[0, 0, Math.PI / 3]} // Tilted C to look like crescent
-               >
-                  C
+               {/* Little Glowing Sun */}
+               <mesh>
+                  <sphereGeometry args={[0.3, 32, 32]} />
                   <meshStandardMaterial 
                     color="#FFD700" 
-                    emissive="#FFD700" 
-                    emissiveIntensity={1} 
+                    emissive="#FFA500" 
+                    emissiveIntensity={4} 
                     toneMapped={false} 
                   />
-               </Text3D>
+               </mesh>
+               <pointLight intensity={1} color="#FFD700" distance={5} decay={2} />
             </Float>
           </group>
 
