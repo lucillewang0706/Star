@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,17 +9,18 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Import Map -->
+  <!-- Import Map: Stable Stack (Three 0.149.0) to fix shader/encoding errors -->
   <script type="importmap">
     {
       "imports": {
         "react": "https://esm.sh/react@18.2.0",
         "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-        "three": "https://esm.sh/three@0.160.0",
-        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
-        "@react-three/drei": "https://esm.sh/@react-three/drei@9.102.0?external=react,react-dom,three,@react-three/fiber",
-        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.0?external=react,react-dom,three,@react-three/fiber",
-        "postprocessing": "https://esm.sh/postprocessing@6.35.0?external=three",
+        "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+        "three": "https://esm.sh/three@0.149.0",
+        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.11.5?external=react,react-dom,three",
+        "@react-three/drei": "https://esm.sh/@react-three/drei@9.56.24?external=react,react-dom,three,@react-three/fiber",
+        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.7.0?external=react,react-dom,three,@react-three/fiber",
+        "postprocessing": "https://esm.sh/postprocessing@6.30.0?external=three",
         "uuid": "https://esm.sh/uuid@9.0.1"
       }
     }
@@ -38,6 +40,9 @@
     .countdown-text {
       font-family: 'Times New Roman', serif;
       animation: pulse-glow 1s infinite ease-in-out;
+    }
+    .loading-text {
+      animation: pulse 2s infinite;
     }
   </style>
 </head>
@@ -75,7 +80,18 @@
 
     // --- Components ---
 
-    // 1. Magic Particles (The Tree/Heart Body)
+    // 1. Loading Screen
+    const Loader = () => {
+      return (
+        <Html center>
+          <div className="text-yellow-200 font-serif text-xl tracking-widest loading-text whitespace-nowrap">
+            Loading Christmas Magic...
+          </div>
+        </Html>
+      );
+    };
+
+    // 2. Magic Particles (The Tree/Heart Body)
     const MagicParticles = ({ shape }) => {
       const meshRef = useRef();
       const { viewport } = useThree();
@@ -160,11 +176,11 @@
       return (
         <instancedMesh ref={meshRef} args={[null, null, COUNT]}>
           <dodecahedronGeometry args={[0.2, 0]} />
-          {/* Silver-Green Shimmer Material (Very Low Glare) */}
+          {/* Silver-Green Shimmer Material (Dimmed to 0.15) */}
           <meshStandardMaterial 
             color="#2E8B57"        // SeaGreen
             emissive="#B0E0E6"     // PowderBlue
-            emissiveIntensity={0.15} // Low brightness as requested
+            emissiveIntensity={0.15} // Dimmed to 0.15 as requested
             roughness={0.6}        
             metalness={0.4}        
             toneMapped={false}
@@ -173,7 +189,7 @@
       );
     };
 
-    // 2. Planets (Scattered Mode Decoration)
+    // 3. Planets (Scattered Mode Decoration)
     const PLANET_FACTS = [
       "1. 把你体内的DNA搓成一条线的话，它能延伸100亿英里，比地球到冥王星的距离还远。所以光靠你自己就足够离开太阳系了。",
       "2. 一朵云有多轻呢？大约五十万公斤。",
@@ -218,8 +234,9 @@
       );
     };
 
-    // 3. Decorations (Text & Topper)
+    // 4. Decorations (Text & Topper)
     const Decorations = ({ shape }) => {
+      // Use jsdelivr for reliable loading
       const fontUrl = "https://cdn.jsdelivr.net/npm/three/examples/fonts/helvetiker_regular.typeface.json";
       
       const letters = useMemo(() => {
@@ -309,19 +326,20 @@
       );
     };
 
-    // 4. Meteor Shower (Full Screen)
+    // 5. Meteor Shower (Full Screen)
     const Meteors = ({ active }) => {
       const meshRef = useRef();
-      const count = 800; // Large count for full screen
+      // 800 meteors filling the screen (wide range)
+      const count = 800; 
       const dummy = useMemo(() => new THREE.Object3D(), []);
       
       const meteors = useMemo(() => {
         return new Array(count).fill(0).map(() => ({
-          x: randomRange(-60, 60), // Full width
-          y: randomRange(20, 80),  
-          z: randomRange(-30, 20), // Full depth
-          speed: randomRange(0.8, 2.0),
-          len: randomRange(2, 5)
+          x: randomRange(-80, 80), // Very Wide X range (Screen width coverage)
+          y: randomRange(30, 100), // Start high up
+          z: randomRange(-40, 30), // Depth range (behind and in front of tree)
+          speed: randomRange(0.8, 2.5),
+          len: randomRange(3, 8)
         }));
       }, []);
 
@@ -332,9 +350,10 @@
           m.y -= m.speed;
           m.x -= m.speed * 0.5; // Diagonal movement
           
-          if (m.y < -20) {
-            m.y = randomRange(20, 80);
-            m.x = randomRange(-60, 60);
+          if (m.y < -30) {
+            // Reset to top
+            m.y = randomRange(30, 100);
+            m.x = randomRange(-80, 80);
           }
           
           dummy.position.set(m.x, m.y, m.z);
@@ -391,7 +410,7 @@
       const handleWish = () => {
         // 1. Hide Scene
         setSceneVisible(false);
-        setShape(SHAPES.SCATTERED); // Optionally reset shape or keep current
+        setShape(SHAPES.SCATTERED); 
         
         // 2. Start Countdown
         setCountdown(10);
@@ -426,7 +445,10 @@
 
       return (
         <>
-          <Canvas camera={{ position: [0, 0, 12], fov: 45 }} gl={{ toneMappingExposure: 2.5 }}>
+          <Canvas 
+            camera={{ position: [0, 0, 12], fov: 45 }} 
+            gl={{ outputEncoding: THREE.sRGBEncoding, toneMappingExposure: 2.5 }}
+          >
             <color attach="background" args={['#000010']} />
             
             {/* Ambient Elements (Always Visible) */}
@@ -437,7 +459,7 @@
             <pointLight position={[-10, -10, -10]} intensity={1.0} />
 
             {/* Conditionally Visible Scene */}
-            <Suspense fallback={null}>
+            <Suspense fallback={<Loader />}>
               <group visible={sceneVisible}>
                 <MagicParticles shape={shape} />
                 <Decorations shape={shape} />
@@ -496,7 +518,7 @@
               <h1 className="text-5xl md:text-7xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-white to-yellow-200 drop-shadow-[0_0_30px_rgba(253,224,71,0.6)] mb-6 font-serif animate-pulse">
                 Your wish will come true!!!!
               </h1>
-              {/* Smaller subtitle font size */}
+              {/* Small subtitle text */}
               <p className="text-sm text-white/80 font-light tracking-[0.2em] drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
                 我会和你一起实现
               </p>
@@ -523,40 +545,4 @@
                 </button>
                 <button 
                   onClick={() => setShape(SHAPES.SCATTERED)}
-                  className={`px-6 py-2 rounded-full transition-all duration-300 font-light tracking-widest ${shape === SHAPES.SCATTERED ? 'bg-blue-500/80 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-white/5 text-blue-200 hover:bg-white/10'}`}
-                >
-                  SCATTER
-                </button>
-              </div>
-
-              {/* Music Upload (No Photo Button) */}
-              <div className="pointer-events-auto">
-                <label className="cursor-pointer flex items-center gap-2 text-white/70 hover:text-white transition-colors bg-white/5 px-4 py-1.5 rounded-full border border-white/10 hover:bg-white/10 text-sm">
-                  <span>♫ Upload Music</span>
-                  <input type="file" accept="audio/*" className="hidden" onChange={handleMusicUpload} />
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* Make A Wish Button (Bottom Right) */}
-          {sceneVisible && (
-            <div className="absolute bottom-6 right-6 z-50 pointer-events-auto">
-               <button 
-                  onClick={handleWish}
-                  className="px-6 py-3 rounded-full bg-gradient-to-r from-amber-200 to-yellow-400 text-amber-900 font-bold tracking-wider shadow-[0_0_25px_rgba(251,191,36,0.6)] hover:scale-110 hover:shadow-[0_0_40px_rgba(251,191,36,0.8)] transition-all duration-500 ease-out"
-                >
-                  ✨ MAKE A WISH
-                </button>
-            </div>
-          )}
-
-        </>
-      );
-    };
-
-    const root = createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>
+                  className={`px-6 py-2 rounded-full transition-all duration-300 font-light tracking-widest ${shape === SHAPES
