@@ -9,18 +9,18 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Import Map: Stable Stack (Three 0.149.0) to fix shader/encoding errors -->
+  <!-- Import Map: Modern Stack (Three 0.160.0) to fix colorspace_fragment errors -->
   <script type="importmap">
     {
       "imports": {
         "react": "https://esm.sh/react@18.2.0",
         "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
         "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
-        "three": "https://esm.sh/three@0.149.0",
-        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.11.5?external=react,react-dom,three",
-        "@react-three/drei": "https://esm.sh/@react-three/drei@9.56.24?external=react,react-dom,three,@react-three/fiber",
-        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.7.0?external=react,react-dom,three,@react-three/fiber",
-        "postprocessing": "https://esm.sh/postprocessing@6.30.0?external=three",
+        "three": "https://esm.sh/three@0.160.0",
+        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.12?external=react,react-dom,three",
+        "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber",
+        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.0?external=react,react-dom,three,@react-three/fiber",
+        "postprocessing": "https://esm.sh/postprocessing@6.34.1?external=three",
         "uuid": "https://esm.sh/uuid@9.0.1"
       }
     }
@@ -447,7 +447,7 @@
         <>
           <Canvas 
             camera={{ position: [0, 0, 12], fov: 45 }} 
-            gl={{ outputEncoding: THREE.sRGBEncoding, toneMappingExposure: 2.5 }}
+            gl={{ toneMappingExposure: 2.5 }}
           >
             <color attach="background" args={['#000010']} />
             
@@ -545,4 +545,40 @@
                 </button>
                 <button 
                   onClick={() => setShape(SHAPES.SCATTERED)}
-                  className={`px-6 py-2 rounded-full transition-all duration-300 font-light tracking-widest ${shape === SHAPES
+                  className={`px-6 py-2 rounded-full transition-all duration-300 font-light tracking-widest ${shape === SHAPES.SCATTERED ? 'bg-blue-500/80 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-white/5 text-blue-200 hover:bg-white/10'}`}
+                >
+                  SCATTER
+                </button>
+              </div>
+
+              {/* Music Upload */}
+              <div className="pointer-events-auto">
+                <label className="cursor-pointer flex items-center gap-2 text-white/70 hover:text-white transition-colors bg-white/5 px-4 py-1.5 rounded-full border border-white/10 hover:bg-white/10 text-sm">
+                  <span>♫ Upload Music</span>
+                  <input type="file" accept="audio/*" className="hidden" onChange={handleMusicUpload} />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Make A Wish Button (Bottom Right) */}
+          {sceneVisible && (
+            <div className="absolute bottom-6 right-6 z-50 pointer-events-auto">
+               <button 
+                  onClick={handleWish}
+                  className="px-6 py-3 rounded-full bg-gradient-to-r from-amber-200 to-yellow-400 text-amber-900 font-bold tracking-wider shadow-[0_0_25px_rgba(251,191,36,0.6)] hover:scale-110 hover:shadow-[0_0_40px_rgba(251,191,36,0.8)] transition-all duration-500 ease-out"
+                >
+                  ✨ MAKE A WISH
+                </button>
+            </div>
+          )}
+
+        </>
+      );
+    };
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
