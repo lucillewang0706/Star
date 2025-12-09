@@ -9,7 +9,7 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Import Map: Modern Stack (Three 0.160.0) to fix colorspace_fragment errors -->
+  <!-- Import Map: Modern Stack (Three 0.160.0) -->
   <script type="importmap">
     {
       "imports": {
@@ -17,8 +17,8 @@
         "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
         "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
         "three": "https://esm.sh/three@0.160.0",
-        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.12?external=react,react-dom,three",
-        "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber",
+        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
+        "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber",
         "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.0?external=react,react-dom,three,@react-three/fiber",
         "postprocessing": "https://esm.sh/postprocessing@6.34.1?external=three",
         "uuid": "https://esm.sh/uuid@9.0.1"
@@ -43,6 +43,19 @@
     }
     .loading-text {
       animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    /* Hide scrollbar for planet facts overlay */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
   </style>
 </head>
@@ -109,14 +122,48 @@
           treePoints.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
         }
 
-        // Heart Points
+        // Heart Points (Fully Filled Volume)
         const heartPoints = [];
-        for (let i = 0; i < COUNT; i++) {
-          const t = Math.random() * Math.PI * 2;
-          const x = 16 * Math.pow(Math.sin(t), 3);
-          const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-          const scale = 0.15;
-          heartPoints.push(new THREE.Vector3(x * scale, (y * scale) + 1, randomRange(-0.5, 0.5)));
+        let attempts = 0;
+        // Increase loop limit to ensure we find enough points for a dense volume
+        while(heartPoints.length < COUNT && attempts < 100000) {
+          attempts++;
+          // Bounding box for heart
+          const x = randomRange(-1.5, 1.5);
+          const y = randomRange(-1.5, 2.0); // Shifted Y for centering
+          const z = randomRange(-0.8, 0.8);
+          
+          // Scaling for visual size
+          const scale = 1.8; 
+          const x0 = x * scale;
+          const y0 = y * scale;
+          const z0 = z * scale;
+
+          // Heart Volume Inequality: (x^2 + 9/4y^2 + z^2 - 1)^3 - x^2z^3 - 9/80y^2z^3 <= 0
+          // Adjusted X/Y/Z inputs for the formula logic
+          // Normalize inputs to fit roughly unit heart size for calculation
+          const nx = x;
+          const ny = y - 0.5; // shift down slightly
+          const nz = z;
+          
+          const a = nx*nx + (9/4)*ny*ny + nz*nz - 1;
+          const term2 = nx*nx * nz*nz*nz;
+          const term3 = (9/80)*ny*ny * nz*nz*nz;
+
+          if (a*a*a - term2 - term3 <= 0) {
+             heartPoints.push(new THREE.Vector3(x0, y0, z0));
+          }
+        }
+        // If we didn't fill it (rare), fill randomly inside a sphere as fallback
+        while(heartPoints.length < COUNT) {
+             const r = 1.5 * Math.cbrt(Math.random());
+             const theta = Math.random() * 2 * Math.PI;
+             const phi = Math.acos(2 * Math.random() - 1);
+             heartPoints.push(new THREE.Vector3(
+                 r * Math.sin(phi) * Math.cos(theta),
+                 r * Math.sin(phi) * Math.sin(theta),
+                 r * Math.cos(phi)
+             ));
         }
 
         // Scattered Points (Cloud)
@@ -200,14 +247,15 @@
     ];
 
     const Planets = ({ setActiveFact }) => {
-      // Fixed positions for even distribution (Top, Bottom, Left, Right, Front, Back quadrants)
+      // Fixed positions for even distribution
+      // Reduced size by ~1/3 (approx 0.1 to 0.13)
       const planetsData = useMemo(() => [
-        { pos: [0, 6, 0], color: '#FFD700', size: 0.35, id: 0 },   // Top Gold
-        { pos: [0, -6, 0], color: '#4169E1', size: 0.4, id: 1 },   // Bottom Blue
-        { pos: [-7, 0, 2], color: '#FF69B4', size: 0.3, id: 2 },   // Left Pink
-        { pos: [7, 0, -2], color: '#00FA9A', size: 0.35, id: 3 },  // Right Green
-        { pos: [2, 2, 6], color: '#FFA500', size: 0.25, id: 4 },   // Front Orange
-        { pos: [-2, -2, -6], color: '#9370DB', size: 0.3, id: 5 }, // Back Purple
+        { pos: [0, 6, 0], color: '#FFD700', size: 0.12, id: 0 },   
+        { pos: [0, -6, 0], color: '#4169E1', size: 0.13, id: 1 },   
+        { pos: [-7, 0, 2], color: '#FF69B4', size: 0.1, id: 2 },   
+        { pos: [7, 0, -2], color: '#00FA9A', size: 0.12, id: 3 },  
+        { pos: [2, 2, 6], color: '#FFA500', size: 0.09, id: 4 },   
+        { pos: [-2, -2, -6], color: '#9370DB', size: 0.1, id: 5 }, 
       ], []);
 
       return (
@@ -221,10 +269,11 @@
                 onPointerOut={() => document.body.style.cursor = 'auto'}
               >
                 <sphereGeometry args={[data.size, 32, 32]} />
+                {/* Increased emissive intensity to 4.0 for brighter glow on smaller objects */}
                 <meshStandardMaterial 
                   color={data.color} 
                   emissive={data.color} 
-                  emissiveIntensity={2.0} 
+                  emissiveIntensity={4.0} 
                   toneMapped={false}
                 />
               </mesh>
@@ -236,7 +285,6 @@
 
     // 4. Decorations (Text & Topper)
     const Decorations = ({ shape }) => {
-      // Use jsdelivr for reliable loading
       const fontUrl = "https://cdn.jsdelivr.net/npm/three/examples/fonts/helvetiker_regular.typeface.json";
       
       const letters = useMemo(() => {
@@ -253,21 +301,20 @@
           const r = (4 - y) * 0.45 + 0.5;
           const angle = t * Math.PI * 6;
           
-          // Heart curve positions
-          // We map the heart phrase length to 0..2PI
+          // Heart curve positions for text decoration (Outer rim)
+          // Keep text on the "rim" so it's readable, while the green stars fill the volume
           const tHeart = (i / heartPhrase.length) * Math.PI * 2;
-          // Standard heart formula
+          // Parametric heart curve for outline
           const hx = 16 * Math.pow(Math.sin(tHeart), 3);
           const hy = 13 * Math.cos(tHeart) - 5 * Math.cos(2*tHeart) - 2 * Math.cos(3*tHeart) - Math.cos(4*tHeart);
-          // Scale it slightly larger than the particle heart
-          const scale = 0.18; 
+          const scale = 0.22; 
 
           return {
             char: char,
-            heartChar: heartPhrase[i % heartPhrase.length], // Fallback if lengths differ
+            heartChar: heartPhrase[i % heartPhrase.length], // Fallback
             treePos: [Math.cos(angle) * r, y, Math.sin(angle) * r],
-            heartPos: [hx * scale, (hy * scale) + 1, 0.5], // Slight Z offset
-            color: Math.random() > 0.5 ? "#FFF8DC" : "#E6E6FA", // PaleGold or PaleSilver
+            heartPos: [hx * scale, (hy * scale) + 1, 1.2], // Slightly in front of the filled volume
+            color: Math.random() > 0.5 ? "#FFF8DC" : "#E6E6FA",
             rot: [0, -angle, 0]
           };
         });
@@ -292,28 +339,27 @@
 
           {/* Floating Letters */}
           {letters.map((item, i) => {
-             // Only show decorations in TREE or HEART mode
              if (shape === SHAPES.SCATTERED) return null;
 
              const isTree = shape === SHAPES.TREE;
              const pos = isTree ? item.treePos : item.heartPos;
              const rot = isTree ? item.rot : [0, 0, 0];
              const charToRender = isTree ? item.char : item.heartChar;
-             const color = isTree ? item.color : "#FFFFE0"; // Pale Yellow for Heart
+             const color = isTree ? item.color : "#FFFFE0"; 
 
              return (
               <Float key={i} speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
                 <Center position={pos} rotation={rot}>
                   <Text3D
                     font={fontUrl}
-                    size={isTree ? 0.25 : 0.15} // Smaller text for heart
-                    height={0.05}
+                    size={isTree ? 0.15 : 0.1} // Reduced text size: 0.15 for Tree, 0.1 for Heart
+                    height={0.02}
                     curveSegments={12}
                     bevelEnabled
                     bevelThickness={0.01}
-                    bevelSize={0.01}
+                    bevelSize={0.002}
                     bevelOffset={0}
-                    bevelSegments={5}
+                    bevelSegments={3}
                   >
                     {charToRender}
                     <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} toneMapped={false} />
@@ -329,15 +375,14 @@
     // 5. Meteor Shower (Full Screen)
     const Meteors = ({ active }) => {
       const meshRef = useRef();
-      // 800 meteors filling the screen (wide range)
-      const count = 800; 
+      const count = 800; // Increased count
       const dummy = useMemo(() => new THREE.Object3D(), []);
       
       const meteors = useMemo(() => {
         return new Array(count).fill(0).map(() => ({
-          x: randomRange(-80, 80), // Very Wide X range (Screen width coverage)
-          y: randomRange(30, 100), // Start high up
-          z: randomRange(-40, 30), // Depth range (behind and in front of tree)
+          x: randomRange(-80, 80), // Full Screen X
+          y: randomRange(30, 100), 
+          z: randomRange(-40, 30), // Full Depth Z
           speed: randomRange(0.8, 2.5),
           len: randomRange(3, 8)
         }));
@@ -348,10 +393,9 @@
         
         meteors.forEach((m, i) => {
           m.y -= m.speed;
-          m.x -= m.speed * 0.5; // Diagonal movement
+          m.x -= m.speed * 0.5;
           
           if (m.y < -30) {
-            // Reset to top
             m.y = randomRange(30, 100);
             m.x = randomRange(-80, 80);
           }
@@ -383,7 +427,7 @@
       const [activeFact, setActiveFact] = useState(null);
       const [sceneVisible, setSceneVisible] = useState(true);
 
-      // Music Player
+      // Music Player Setup
       useEffect(() => {
         const audio = document.getElementById('bg-music');
         audio.volume = 0.5;
@@ -395,7 +439,6 @@
         return () => window.removeEventListener('click', playAudio);
       }, []);
 
-      // Music Upload Handler
       const handleMusicUpload = (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -406,17 +449,12 @@
         }
       };
 
-      // Make a Wish Logic
       const handleWish = () => {
-        // 1. Hide Scene
         setSceneVisible(false);
         setShape(SHAPES.SCATTERED); 
-        
-        // 2. Start Countdown
         setCountdown(10);
       };
 
-      // Countdown Effect
       useEffect(() => {
         if (countdown === null) return;
         
@@ -424,19 +462,18 @@
           const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
           return () => clearTimeout(timer);
         } else {
-          // Countdown finished -> Start Meteor Shower
+          // Countdown Finished -> Meteor Shower
           setWishing(true);
           const fx = document.getElementById('meteor-fx');
           fx.volume = 1.0;
           fx.currentTime = 0;
           fx.play();
           
-          // Wait 10s then Restore
           const restoreTimer = setTimeout(() => {
             setWishing(false);
             setCountdown(null);
             setSceneVisible(true);
-            setShape(SHAPES.TREE); // Go back to tree
+            setShape(SHAPES.TREE);
           }, 10000);
           
           return () => clearTimeout(restoreTimer);
@@ -445,68 +482,78 @@
 
       return (
         <>
-          <Canvas 
-            camera={{ position: [0, 0, 12], fov: 45 }} 
-            gl={{ toneMappingExposure: 2.5 }}
-          >
-            <color attach="background" args={['#000010']} />
-            
-            {/* Ambient Elements (Always Visible) */}
-            <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-            <Sparkles count={500} scale={20} size={2} speed={0.4} opacity={0.5} color="#FFD700" />
-            <ambientLight intensity={0.8} />
-            <pointLight position={[10, 10, 10]} intensity={2.0} />
-            <pointLight position={[-10, -10, -10]} intensity={1.0} />
-
-            {/* Conditionally Visible Scene */}
+          <Canvas camera={{ position: [0, 0, 15], fov: 60 }} dpr={[1, 2]}>
             <Suspense fallback={<Loader />}>
+              <color attach="background" args={['#000010']} />
+              <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+              
+              <ambientLight intensity={0.8} />
+              <pointLight position={[10, 10, 10]} intensity={2.0} />
+              <pointLight position={[-10, -10, -10]} intensity={1.0} />
+
               <group visible={sceneVisible}>
                 <MagicParticles shape={shape} />
                 <Decorations shape={shape} />
                 {shape === SHAPES.SCATTERED && <Planets setActiveFact={setActiveFact} />}
               </group>
+
+              {/* Meteors separate so they show when scene is hidden during wish */}
+              <Meteors active={wishing} />
+
+              <EffectComposer>
+                <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.9} height={300} intensity={1.5} />
+                <Vignette eskil={false} offset={0.1} darkness={1.1} />
+              </EffectComposer>
+              
+              <OrbitControls 
+                enableZoom={true} 
+                enablePan={false} 
+                rotateSpeed={0.5} 
+                minDistance={5} 
+                maxDistance={30}
+              />
             </Suspense>
-
-            {/* Meteors (Visible during wishing phase) */}
-            <Meteors active={wishing} />
-
-            {/* Post Processing */}
-            <EffectComposer>
-              <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.9} intensity={1.5} />
-              <Vignette eskil={false} offset={0.1} darkness={0.5} />
-            </EffectComposer>
-            
-            <OrbitControls 
-              enableZoom={true} 
-              enablePan={false} 
-              minPolarAngle={Math.PI / 4} 
-              maxPolarAngle={Math.PI / 1.5}
-            />
           </Canvas>
 
-          {/* --- UI Overlays --- */}
-
           {/* Top Left Title */}
-          <div className="absolute top-6 left-6 z-10 pointer-events-none">
-            <h1 className="text-3xl font-serif text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-500 drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">
-              Merry Christmas<br/>& Happy New Year!
+          <div className="absolute top-6 left-6 text-white z-10 pointer-events-none">
+            <h1 className="text-2xl font-serif tracking-widest text-yellow-100 drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">
+              Merry Christmas & Happy New Year!
             </h1>
           </div>
 
-          {/* Fact Popup */}
-          {activeFact && (
-            <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/60 backdrop-blur-sm" onClick={() => setActiveFact(null)}>
-              <div className="bg-slate-900/90 border border-slate-700 p-8 rounded-2xl max-w-md text-center shadow-[0_0_50px_rgba(100,200,255,0.2)] transform transition-all scale-100 hover:scale-105">
-                <p className="text-blue-100 text-lg leading-relaxed font-light">{activeFact}</p>
-                <p className="text-slate-500 text-sm mt-4">(Click anywhere to close)</p>
-              </div>
+          {/* Bottom Right Controls (Make A Wish & Music) */}
+          {sceneVisible && (
+            <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-20">
+              {/* Music Upload Button */}
+              <label className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full cursor-pointer transition-all text-sm text-center">
+                ♫ Music
+                <input type="file" accept="audio/*" onChange={handleMusicUpload} className="hidden" />
+              </label>
+
+              {/* Make a Wish Button */}
+              <button 
+                onClick={handleWish}
+                className="bg-gradient-to-r from-yellow-200 to-amber-400 text-black font-serif px-8 py-3 rounded-full shadow-[0_0_20px_rgba(255,215,0,0.6)] hover:scale-105 transition-transform"
+              >
+                Make a Wish
+              </button>
+            </div>
+          )}
+
+          {/* Bottom Center Shape Controls (Only visible when scene is visible) */}
+          {sceneVisible && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-6 z-20">
+              <button onClick={() => setShape(SHAPES.TREE)} className={`text-white/80 hover:text-white transition-colors ${shape === SHAPES.TREE ? 'font-bold text-yellow-200' : ''}`}>TREE</button>
+              <button onClick={() => setShape(SHAPES.HEART)} className={`text-white/80 hover:text-white transition-colors ${shape === SHAPES.HEART ? 'font-bold text-pink-200' : ''}`}>HEART</button>
+              <button onClick={() => setShape(SHAPES.SCATTERED)} className={`text-white/80 hover:text-white transition-colors ${shape === SHAPES.SCATTERED ? 'font-bold text-blue-200' : ''}`}>GALAXY</button>
             </div>
           )}
 
           {/* Countdown Overlay */}
-          {countdown !== null && countdown > 0 && (
-            <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
-              <div className="text-9xl font-bold text-yellow-100 drop-shadow-[0_0_50px_rgba(255,215,0,1)] countdown-text">
+          {countdown !== null && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+              <div className="text-[15rem] text-yellow-100 countdown-text drop-shadow-[0_0_50px_rgba(255,215,0,0.8)]">
                 {countdown}
               </div>
             </div>
@@ -514,65 +561,33 @@
 
           {/* Wish Message Overlay */}
           {wishing && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center z-50 pointer-events-none p-4">
-              <h1 className="text-5xl md:text-7xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-white to-yellow-200 drop-shadow-[0_0_30px_rgba(253,224,71,0.6)] mb-6 font-serif animate-pulse">
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-50 bg-black/20">
+              <h2 className="text-4xl md:text-6xl text-transparent bg-clip-text bg-gradient-to-r from-yellow-100 via-white to-yellow-100 font-serif drop-shadow-[0_0_30px_rgba(255,255,255,0.8)] animate-pulse mb-4">
                 Your wish will come true!!!!
-              </h1>
-              {/* Small subtitle text */}
-              <p className="text-sm text-white/80 font-light tracking-[0.2em] drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+              </h2>
+              {/* Small Elegant Subtitle */}
+              <p className="text-sm text-white/80 font-light tracking-widest font-serif italic">
                 我会和你一起实现
               </p>
             </div>
           )}
 
-          {/* Controls (Hidden during wish) */}
-          {sceneVisible && (
-            <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col items-center justify-end z-40 pointer-events-none">
-              
-              {/* Shape Controls */}
-              <div className="flex gap-4 pointer-events-auto mb-4 bg-black/20 backdrop-blur-md p-3 rounded-full border border-white/10">
+          {/* Planet Fact Overlay */}
+          {activeFact && (
+            <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/60 backdrop-blur-sm" onClick={() => setActiveFact(null)}>
+              <div className="bg-slate-900/90 border border-white/20 p-8 rounded-2xl max-w-lg mx-4 text-center shadow-[0_0_50px_rgba(100,200,255,0.2)]" onClick={e => e.stopPropagation()}>
+                <p className="text-blue-100 text-lg leading-relaxed font-serif">
+                  {activeFact}
+                </p>
                 <button 
-                  onClick={() => setShape(SHAPES.TREE)}
-                  className={`px-6 py-2 rounded-full transition-all duration-300 font-light tracking-widest ${shape === SHAPES.TREE ? 'bg-emerald-500/80 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)]' : 'bg-white/5 text-emerald-200 hover:bg-white/10'}`}
+                  onClick={() => setActiveFact(null)}
+                  className="mt-6 text-sm text-white/50 hover:text-white transition-colors"
                 >
-                  TREE
+                  Close
                 </button>
-                <button 
-                  onClick={() => setShape(SHAPES.HEART)}
-                  className={`px-6 py-2 rounded-full transition-all duration-300 font-light tracking-widest ${shape === SHAPES.HEART ? 'bg-pink-500/80 text-white shadow-[0_0_20px_rgba(236,72,153,0.5)]' : 'bg-white/5 text-pink-200 hover:bg-white/10'}`}
-                >
-                  HEART
-                </button>
-                <button 
-                  onClick={() => setShape(SHAPES.SCATTERED)}
-                  className={`px-6 py-2 rounded-full transition-all duration-300 font-light tracking-widest ${shape === SHAPES.SCATTERED ? 'bg-blue-500/80 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-white/5 text-blue-200 hover:bg-white/10'}`}
-                >
-                  SCATTER
-                </button>
-              </div>
-
-              {/* Music Upload */}
-              <div className="pointer-events-auto">
-                <label className="cursor-pointer flex items-center gap-2 text-white/70 hover:text-white transition-colors bg-white/5 px-4 py-1.5 rounded-full border border-white/10 hover:bg-white/10 text-sm">
-                  <span>♫ Upload Music</span>
-                  <input type="file" accept="audio/*" className="hidden" onChange={handleMusicUpload} />
-                </label>
               </div>
             </div>
           )}
-
-          {/* Make A Wish Button (Bottom Right) */}
-          {sceneVisible && (
-            <div className="absolute bottom-6 right-6 z-50 pointer-events-auto">
-               <button 
-                  onClick={handleWish}
-                  className="px-6 py-3 rounded-full bg-gradient-to-r from-amber-200 to-yellow-400 text-amber-900 font-bold tracking-wider shadow-[0_0_25px_rgba(251,191,36,0.6)] hover:scale-110 hover:shadow-[0_0_40px_rgba(251,191,36,0.8)] transition-all duration-500 ease-out"
-                >
-                  ✨ MAKE A WISH
-                </button>
-            </div>
-          )}
-
         </>
       );
     };
