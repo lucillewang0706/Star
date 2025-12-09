@@ -15,106 +15,43 @@
         "react": "https://esm.sh/react@18.2.0",
         "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
         "three": "https://esm.sh/three@0.160.0",
-        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.12?deps=three@0.160.0,react@18.2.0",
-        "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?deps=three@0.160.0,react@18.2.0,@react-three/fiber@8.15.12",
-        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.0?deps=three@0.160.0,react@18.2.0,@react-three/fiber@8.15.12,postprocessing@6.34.1",
-        "postprocessing": "https://esm.sh/postprocessing@6.34.1?deps=three@0.160.0",
-        "maath/random/dist/maath-random.esm": "https://esm.sh/maath@0.10.7/random/dist/maath-random.esm",
-        "framer-motion": "https://esm.sh/framer-motion@10.16.4?deps=react@18.2.0",
-        "uuid": "https://esm.sh/uuid@9.0.1",
-        "@mediapipe/tasks-vision": "https://esm.sh/@mediapipe/tasks-vision@0.10.9"
+        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
+        "@react-three/drei": "https://esm.sh/@react-three/drei@9.102.0?external=react,react-dom,three,@react-three/fiber",
+        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.0?external=react,react-dom,three,@react-three/fiber",
+        "postprocessing": "https://esm.sh/postprocessing@6.35.0?external=three",
+        "uuid": "https://esm.sh/uuid@9.0.1"
       }
     }
   </script>
 
-  <!-- Babel for JSX -->
+  <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
-    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050510; }
+    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000010; }
     #root { width: 100%; height: 100%; }
     
-    /* Hide scrollbars */
-    ::-webkit-scrollbar { display: none; }
-    
-    /* Custom Animations */
-    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
-    .fade-out { animation: fadeOut 1s forwards; }
-
-    @keyframes pulse {
-      0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-      50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
-      100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    @keyframes pulse-glow {
+      0%, 100% { text-shadow: 0 0 20px #FFD700, 0 0 40px #FFA500; transform: scale(1); }
+      50% { text-shadow: 0 0 40px #FFD700, 0 0 80px #FFA500; transform: scale(1.1); }
     }
-    
-    .file-upload-overlay {
-      position: absolute;
-      top: 60px; /* Moved down slightly to avoid title */
-      left: 20px;
-      z-index: 40;
-      opacity: 0;
-      width: 40px;
-      height: 40px;
-      overflow: hidden;
-      cursor: pointer;
-    }
-    .file-upload-overlay:hover { opacity: 0.5; }
-    
-    /* Loading overlay */
-    #loader {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: #000;
-      color: #50C878;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
-      font-family: monospace;
-      font-size: 1.5rem;
-      transition: opacity 1s ease;
-    }
-
-    /* Title Style */
-    .main-title {
-        position: absolute;
-        top: 20px;
-        left: 25px;
-        z-index: 30;
-        font-family: 'Times New Roman', serif;
-        font-size: 1.5rem;
-        color: #FFD700;
-        text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-        pointer-events: none;
-        letter-spacing: 1px;
-    }
-    @media (max-width: 600px) {
-        .main-title {
-            font-size: 1.1rem;
-            left: 15px;
-            top: 15px;
-        }
+    .countdown-text {
+      font-family: 'Times New Roman', serif;
+      animation: pulse-glow 1s infinite ease-in-out;
     }
   </style>
 </head>
 <body>
-  <div id="loader">Loading Christmas Magic...</div>
   <div id="root"></div>
 
-  <!-- Main Title -->
-  <div class="main-title">
-      Merry Christmas & Happy New Year!
-  </div>
-
-  <!-- Audio Element (Background Music) -->
-  <audio id="bg-music" loop crossorigin="anonymous" style="display:none;">
-    <source src="https://cdn.pixabay.com/audio/2022/12/13/audio_65191837b2.mp3" type="audio/mpeg">
+  <!-- Background Music Audio Element -->
+  <audio id="bg-music" loop>
+    <source src="https://cdn.pixabay.com/download/audio/2022/11/22/audio_febc508520.mp3?filename=christmas-magic-127058.mp3" type="audio/mpeg">
   </audio>
 
-  <!-- Audio Element (Meteor Sound Effect) -->
-  <audio id="meteor-fx" crossorigin="anonymous" style="display:none;">
-    <!-- Magical wind chimes / sparkle sound -->
-    <source src="https://cdn.pixabay.com/audio/2022/10/28/audio_24345d4715.mp3" type="audio/mpeg">
+  <!-- Meteor Sound Effect -->
+  <audio id="meteor-fx">
+    <source src="https://cdn.pixabay.com/download/audio/2022/03/24/audio_338a906253.mp3?filename=magic-chime-02-6014.mp3" type="audio/mpeg">
   </audio>
 
   <script type="text/babel" data-type="module">
@@ -122,612 +59,498 @@
     import { createRoot } from 'react-dom/client';
     import * as THREE from 'three';
     import { Canvas, useFrame, useThree } from '@react-three/fiber';
-    import { 
-      OrbitControls, 
-      Stars, 
-      Float, 
-      Text3D, 
-      Center, 
-      Sparkles, 
-      Image as DreiImage
-    } from '@react-three/drei';
-    import {
-      EffectComposer, 
-      Bloom,
-      Vignette
-    } from '@react-three/postprocessing';
-    import * as random from 'maath/random/dist/maath-random.esm';
-    
-    // --- Constants ---
-    const COLORS = {
-      midnight: '#191970',
-      ice: '#A5F2F3',
-      snow: '#FFFAFA',
-      gold: '#FFD700',
-      silver: '#C0C0C0',
-      emerald: '#50C878',
-      warmLight: '#ffaa00'
-    };
+    import { OrbitControls, PerspectiveCamera, Stars, Float, Text3D, Center, Sparkles, Html } from '@react-three/drei';
+    import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 
+    // --- Constants ---
+    const COUNT = 2000;
     const SHAPES = {
       SCATTERED: 'SCATTERED',
       TREE: 'TREE',
       HEART: 'HEART'
     };
-
-    const PARTICLE_COUNT = 3000; // Dense tree
-
-    // --- Utils ---
     
-    // Helper to generate Tree Spiral positions
-    const getTreePosition = (i) => {
-      const y = (i / PARTICLE_COUNT) * 10 - 5; // Height from -5 to 5
-      const radius = (1 - (y + 5) / 10) * 3.5; // Cone shape
-      const angle = i * 0.5; // Spiral tightness
-      const x = radius * Math.cos(angle);
-      const z = radius * Math.sin(angle);
-      return new THREE.Vector3(x, y, z);
-    };
-
-    // Helper for Heart positions
-    const getHeartPosition = (i) => {
-      const t = (i / PARTICLE_COUNT) * Math.PI * 2;
-      // Parametric heart equation
-      const x = 16 * Math.pow(Math.sin(t), 3);
-      const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-      const scale = 0.25;
-      // Distribute points inside the heart volume roughly
-      const r = Math.random();
-      return new THREE.Vector3(x * scale * r, y * scale * r + 2, (Math.random() - 0.5) * 2);
-    };
-
-    // Helper for Scattered positions
-    const getScatteredPosition = () => {
-      const p = random.inSphere(new Float32Array(3), { radius: 8 });
-      return new THREE.Vector3(p[0], p[1], p[2]);
-    };
+    // --- Helper Functions ---
+    const randomRange = (min, max) => Math.random() * (max - min) + min;
 
     // --- Components ---
 
-    // 1. Particle System (The Tree/Morphing Entity)
-    const MagicParticles = ({ shape, audioAnalyser }) => {
+    // 1. Magic Particles (The Tree/Heart Body)
+    const MagicParticles = ({ shape }) => {
       const meshRef = useRef();
       const { viewport } = useThree();
       
-      // Generate target positions for all states once
-      const positions = useMemo(() => {
-        const tree = new Float32Array(PARTICLE_COUNT * 3);
-        const heart = new Float32Array(PARTICLE_COUNT * 3);
-        const scattered = new Float32Array(PARTICLE_COUNT * 3);
-
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-          const t = getTreePosition(i);
-          tree[i * 3] = t.x; tree[i * 3 + 1] = t.y; tree[i * 3 + 2] = t.z;
-
-          const h = getHeartPosition(i);
-          heart[i * 3] = h.x; heart[i * 3 + 1] = h.y; heart[i * 3 + 2] = h.z;
-
-          const s = getScatteredPosition();
-          scattered[i * 3] = s.x; scattered[i * 3 + 1] = s.y; scattered[i * 3 + 2] = s.z;
+      const dummy = useMemo(() => new THREE.Object3D(), []);
+      
+      const particles = useMemo(() => {
+        const temp = [];
+        // Tree Points (Spiral Cone)
+        const treePoints = [];
+        for (let i = 0; i < COUNT; i++) {
+          const y = randomRange(-4, 4);
+          const radius = (4 - y) * 0.4;
+          const angle = y * 5 + Math.random() * Math.PI * 2;
+          treePoints.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
         }
-        return { [SHAPES.TREE]: tree, [SHAPES.HEART]: heart, [SHAPES.SCATTERED]: scattered };
+
+        // Heart Points
+        const heartPoints = [];
+        for (let i = 0; i < COUNT; i++) {
+          const t = Math.random() * Math.PI * 2;
+          const x = 16 * Math.pow(Math.sin(t), 3);
+          const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+          const scale = 0.15;
+          heartPoints.push(new THREE.Vector3(x * scale, (y * scale) + 1, randomRange(-0.5, 0.5)));
+        }
+
+        // Scattered Points (Cloud)
+        const scatteredPoints = [];
+        for (let i = 0; i < COUNT; i++) {
+          scatteredPoints.push(new THREE.Vector3(randomRange(-8, 8), randomRange(-5, 8), randomRange(-5, 5)));
+        }
+
+        for (let i = 0; i < COUNT; i++) {
+          temp.push({
+            tree: treePoints[i],
+            heart: heartPoints[i],
+            scattered: scatteredPoints[i],
+            current: scatteredPoints[i].clone(), // Start scattered
+            speed: randomRange(0.02, 0.05),
+            offset: Math.random() * 100
+          });
+        }
+        return temp;
       }, []);
 
-      // Current visible positions
-      const currentPositions = useMemo(() => new Float32Array(positions[SHAPES.SCATTERED]), []);
-      
-      // Dummy object for instanced mesh matrix calculation
-      const dummy = useMemo(() => new THREE.Object3D(), []);
-
-      useFrame((state, delta) => {
+      useFrame((state) => {
         if (!meshRef.current) return;
+        
+        const time = state.clock.getElapsedTime();
 
-        // Audio reactivity
-        let audioScale = 1;
-        if (audioAnalyser) {
-           const data = audioAnalyser.getFrequencyData();
-           const avg = data.reduce((a, b) => a + b, 0) / data.length;
-           audioScale = 1 + (avg / 255) * 0.2; // Mild beat pulse
-        }
+        particles.forEach((particle, i) => {
+          let target;
+          if (shape === SHAPES.TREE) target = particle.tree;
+          else if (shape === SHAPES.HEART) target = particle.heart;
+          else target = particle.scattered;
 
-        const target = positions[shape];
-        const lerpSpeed = 3 * delta; // Smooth spring-like interpolation
+          // Morphing
+          particle.current.lerp(target, 0.03);
 
-        // Update individual particles
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-          const ix = i * 3;
-          const iy = i * 3 + 1;
-          const iz = i * 3 + 2;
-
-          // Morph logic: Linear interpolation
-          currentPositions[ix] += (target[ix] - currentPositions[ix]) * lerpSpeed;
-          currentPositions[iy] += (target[iy] - currentPositions[iy]) * lerpSpeed;
-          currentPositions[iz] += (target[iz] - currentPositions[iz]) * lerpSpeed;
-
-          // Breathing / Glitter effect
-          const breathing = Math.sin(state.clock.elapsedTime * 2 + i) * 0.05;
+          // Breathing/Floating animation
+          const breathe = Math.sin(time * 2 + particle.offset) * 0.05;
           
           dummy.position.set(
-            currentPositions[ix],
-            currentPositions[iy],
-            currentPositions[iz]
+            particle.current.x,
+            particle.current.y + breathe,
+            particle.current.z
           );
           
-          // Rotation for star sparkle
-          dummy.rotation.set(
-            Math.sin(state.clock.elapsedTime + i),
-            Math.cos(state.clock.elapsedTime + i),
-            0
-          );
-          
-          const scale = (i % 5 === 0 ? 0.15 : 0.08) * audioScale + breathing; // Randomize star sizes slightly
+          const scale = (Math.sin(time * 3 + particle.offset) * 0.2 + 0.8) * 0.15;
           dummy.scale.set(scale, scale, scale);
-
+          
+          dummy.rotation.set(time * 0.2, time * 0.1, 0);
+          
           dummy.updateMatrix();
           meshRef.current.setMatrixAt(i, dummy.matrix);
-        }
+        });
+        
         meshRef.current.instanceMatrix.needsUpdate = true;
       });
 
-      // Star shape geometry
-      const starShape = useMemo(() => {
-          const shape = new THREE.Shape();
-          const points = 5;
-          const outerRadius = 0.5;
-          const innerRadius = 0.2;
-          for (let i = 0; i < points * 2; i++) {
-            const angle = (i * Math.PI) / points;
-            const r = i % 2 === 0 ? outerRadius : innerRadius;
-            const x = Math.cos(angle) * r;
-            const y = Math.sin(angle) * r;
-            if (i === 0) shape.moveTo(x, y);
-            else shape.lineTo(x, y);
-          }
-          shape.closePath();
-          return shape;
-      }, []);
-
-      const starGeometry = useMemo(() => new THREE.ExtrudeGeometry(starShape, { depth: 0.1, bevelEnabled: false }), [starShape]);
-
       return (
-        <instancedMesh ref={meshRef} args={[starGeometry, null, PARTICLE_COUNT]}>
+        <instancedMesh ref={meshRef} args={[null, null, COUNT]}>
+          <dodecahedronGeometry args={[0.2, 0]} />
+          {/* Silver-Green Shimmer Material (Very Low Glare) */}
           <meshStandardMaterial 
-            color={COLORS.emerald} 
-            emissive={COLORS.emerald}
-            emissiveIntensity={0.5}
-            roughness={0.4}
-            metalness={0.8}
+            color="#2E8B57"        // SeaGreen
+            emissive="#B0E0E6"     // PowderBlue
+            emissiveIntensity={0.15} // Low brightness as requested
+            roughness={0.6}        
+            metalness={0.4}        
             toneMapped={false}
           />
         </instancedMesh>
       );
     };
 
-    // 2. Decorations (Text & Sun)
-    const Decorations = ({ shape }) => {
-      const fontUrl = 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/fonts/helvetiker_regular.typeface.json';
+    // 2. Planets (Scattered Mode Decoration)
+    const PLANET_FACTS = [
+      "1. 把你体内的DNA搓成一条线的话，它能延伸100亿英里，比地球到冥王星的距离还远。所以光靠你自己就足够离开太阳系了。",
+      "2. 一朵云有多轻呢？大约五十万公斤。",
+      "3. 如果我们能尝到的话，银河系中心尝起来大概会像覆盆子和朗姆酒的味道。",
+      "4. 每个人的体内，都可能拥有来自超新星爆发产生的重元素原子。你我皆是星尘。",
+      "5. 火星上的日落是蓝色的。",
+      "6. 洛希极限是指当天体越过临界距离时，较小天体被潮汐力撕裂成碎片，用一次粉身碎骨换一个永恒的拥抱。"
+    ];
 
-      // Phrases: MERRY CHRISTMAS LOVE YOU HAPPY NEW YEAR
-      // Scattered as individual letters
-      const decorationsLayout = useMemo(() => {
-          const text = "MERRYCHRISTMASLOVEYOUHAPPYNEWYEAR";
-          const chars = text.split('');
-          
-          // Fisher-Yates shuffle
-          for (let i = chars.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [chars[i], chars[j]] = [chars[j], chars[i]];
-          }
-          
-          const items = [];
-          
-          chars.forEach((char, i) => {
-              // Distribute randomly on the cone surface
-              // Height from -4 to 4 (Tree spans roughly -5 to 5, keeping it slightly centered)
-              const y = (Math.random() * 8) - 4; 
-              
-              // Radius of cone at this height
-              // Tree logic: radius = (1 - (y + 5) / 10) * 3.5 approximately
-              // We calculate it: at y=-5 r=3.5, at y=5 r=0.
-              const radiusBase = (5 - y) * 0.35; 
-              
-              // Add slightly random offset to radius so they hover nicely
-              const r = radiusBase + 0.2;
-
-              const angle = Math.random() * Math.PI * 2;
-              
-              const x = Math.sin(angle) * r;
-              const z = Math.cos(angle) * r;
-              
-              // Rotation: Face outward
-              const rotY = angle; 
-              
-              // Randomize color between Pale Gold and Pale Silver
-              const isGold = Math.random() > 0.5;
-              const color = isGold ? '#FFF8DC' : '#E6E6FA'; // Cornsilk or Lavender
-              
-              items.push({
-                  char,
-                  position: [x, y, z],
-                  rotation: [0, rotY, 0],
-                  color
-              });
-          });
-          return items;
-      }, []);
+    const Planets = ({ setActiveFact }) => {
+      // Fixed positions for even distribution (Top, Bottom, Left, Right, Front, Back quadrants)
+      const planetsData = useMemo(() => [
+        { pos: [0, 6, 0], color: '#FFD700', size: 0.35, id: 0 },   // Top Gold
+        { pos: [0, -6, 0], color: '#4169E1', size: 0.4, id: 1 },   // Bottom Blue
+        { pos: [-7, 0, 2], color: '#FF69B4', size: 0.3, id: 2 },   // Left Pink
+        { pos: [7, 0, -2], color: '#00FA9A', size: 0.35, id: 3 },  // Right Green
+        { pos: [2, 2, 6], color: '#FFA500', size: 0.25, id: 4 },   // Front Orange
+        { pos: [-2, -2, -6], color: '#9370DB', size: 0.3, id: 5 }, // Back Purple
+      ], []);
 
       return (
         <group>
-          {/* Tree Topper (Sun) - Only visible in TREE state */}
-          <group visible={shape === SHAPES.TREE}>
-            <Float speed={2} rotationIntensity={0.2} floatIntensity={0.5} position={[0, 5.2, 0]}>
-               {/* Little Glowing Sun */}
-               <mesh>
-                  <sphereGeometry args={[0.3, 32, 32]} />
-                  <meshStandardMaterial 
-                    color="#FFD700" 
-                    emissive="#FFA500" 
-                    emissiveIntensity={4} 
-                    toneMapped={false} 
-                  />
-               </mesh>
-               <pointLight intensity={1} color="#FFD700" distance={5} decay={2} />
+          {planetsData.map((data, index) => (
+            <Float key={index} speed={1.5} rotationIntensity={0.5} floatIntensity={1}>
+              <mesh 
+                position={data.pos} 
+                onClick={(e) => { e.stopPropagation(); setActiveFact(PLANET_FACTS[data.id]); }}
+                onPointerOver={() => document.body.style.cursor = 'pointer'}
+                onPointerOut={() => document.body.style.cursor = 'auto'}
+              >
+                <sphereGeometry args={[data.size, 32, 32]} />
+                <meshStandardMaterial 
+                  color={data.color} 
+                  emissive={data.color} 
+                  emissiveIntensity={2.0} 
+                  toneMapped={false}
+                />
+              </mesh>
             </Float>
-          </group>
-
-          {/* Scattered Letters Decorating the Tree */}
-          <group visible={shape === SHAPES.TREE}>
-            {decorationsLayout.map((item, i) => (
-                <Float key={i} speed={2} rotationIntensity={0.5} floatIntensity={0.2} position={item.position}>
-                    <group rotation={item.rotation}>
-                        <Text3D 
-                            font={fontUrl} 
-                            size={0.18} 
-                            height={0.02} 
-                            bevelEnabled
-                            bevelThickness={0.01}
-                            bevelSize={0.005}
-                        >
-                            {item.char}
-                            <meshStandardMaterial 
-                                color={item.color} 
-                                emissive={item.color}
-                                emissiveIntensity={0.6}
-                                metalness={0.9} 
-                                roughness={0.1}
-                                toneMapped={false}
-                            />
-                        </Text3D>
-                    </group>
-                </Float>
-            ))}
-          </group>
+          ))}
         </group>
       );
     };
 
-    // 3. Photo Wall
-    const PhotoWall = ({ shape, photos, onPhotoClick }) => {
-       // Position photos spirally on the tree
-       if (shape !== SHAPES.TREE) return null;
+    // 3. Decorations (Text & Topper)
+    const Decorations = ({ shape }) => {
+      const fontUrl = "https://cdn.jsdelivr.net/npm/three/examples/fonts/helvetiker_regular.typeface.json";
+      
+      const letters = useMemo(() => {
+        // Tree: "MERRY CHRISTMAS AND HAPPY NEW YEAR"
+        const treePhrase = "MERRY CHRISTMAS AND HAPPY NEW YEAR".split("").filter(c => c !== " ");
+        
+        // Heart: "THROUGH ALL THE PAIN YOU STILL SHINE"
+        const heartPhrase = "THROUGH ALL THE PAIN YOU STILL SHINE".split("").filter(c => c !== " ");
 
-       return (
-         <group>
-           {photos.map((url, i) => {
-             const y = (i / (photos.length || 1)) * 6 - 3;
-             const angle = i * 2.5 + Math.PI; // Offset from text slightly
-             const radius = (1 - (y + 5) / 10) * 4.0; 
+        return treePhrase.map((char, i) => {
+          // Spiral positions for Tree
+          const t = i / treePhrase.length;
+          const y = 3.5 - (t * 7); 
+          const r = (4 - y) * 0.45 + 0.5;
+          const angle = t * Math.PI * 6;
+          
+          // Heart curve positions
+          // We map the heart phrase length to 0..2PI
+          const tHeart = (i / heartPhrase.length) * Math.PI * 2;
+          // Standard heart formula
+          const hx = 16 * Math.pow(Math.sin(tHeart), 3);
+          const hy = 13 * Math.cos(tHeart) - 5 * Math.cos(2*tHeart) - 2 * Math.cos(3*tHeart) - Math.cos(4*tHeart);
+          // Scale it slightly larger than the particle heart
+          const scale = 0.18; 
+
+          return {
+            char: char,
+            heartChar: heartPhrase[i % heartPhrase.length], // Fallback if lengths differ
+            treePos: [Math.cos(angle) * r, y, Math.sin(angle) * r],
+            heartPos: [hx * scale, (hy * scale) + 1, 0.5], // Slight Z offset
+            color: Math.random() > 0.5 ? "#FFF8DC" : "#E6E6FA", // PaleGold or PaleSilver
+            rot: [0, -angle, 0]
+          };
+        });
+      }, []);
+
+      return (
+        <group>
+          {/* Tree Topper: Sun */}
+          {shape === SHAPES.TREE && (
+            <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
+              <mesh position={[0, 4.2, 0]}>
+                <sphereGeometry args={[0.3, 32, 32]} />
+                <meshStandardMaterial 
+                  color="#FFD700" 
+                  emissive="#FFA500" 
+                  emissiveIntensity={3} 
+                  toneMapped={false} 
+                />
+              </mesh>
+            </Float>
+          )}
+
+          {/* Floating Letters */}
+          {letters.map((item, i) => {
+             // Only show decorations in TREE or HEART mode
+             if (shape === SHAPES.SCATTERED) return null;
+
+             const isTree = shape === SHAPES.TREE;
+             const pos = isTree ? item.treePos : item.heartPos;
+             const rot = isTree ? item.rot : [0, 0, 0];
+             const charToRender = isTree ? item.char : item.heartChar;
+             const color = isTree ? item.color : "#FFFFE0"; // Pale Yellow for Heart
+
              return (
-               <Float key={i} speed={1.5} rotationIntensity={0.5} floatIntensity={0.5}>
-                 <group 
-                    position={[Math.sin(angle) * radius, y, Math.cos(angle) * radius]} 
-                    rotation={[0, -angle + Math.PI/2, 0]}
-                    onClick={(e) => { e.stopPropagation(); onPhotoClick(url); }}
-                 >
-                   <DreiImage 
-                     url={url} 
-                     scale={[1, 1]} 
-                     transparent 
-                     opacity={0.9}
-                   />
-                   {/* Frame */}
-                   <mesh position={[0, 0, -0.01]}>
-                      <planeGeometry args={[1.1, 1.1]} />
-                      <meshStandardMaterial color={COLORS.silver} metalness={1} />
-                   </mesh>
-                 </group>
-               </Float>
+              <Float key={i} speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
+                <Center position={pos} rotation={rot}>
+                  <Text3D
+                    font={fontUrl}
+                    size={isTree ? 0.25 : 0.15} // Smaller text for heart
+                    height={0.05}
+                    curveSegments={12}
+                    bevelEnabled
+                    bevelThickness={0.01}
+                    bevelSize={0.01}
+                    bevelOffset={0}
+                    bevelSegments={5}
+                  >
+                    {charToRender}
+                    <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} toneMapped={false} />
+                  </Text3D>
+                </Center>
+              </Float>
              );
-           })}
-         </group>
-       );
+          })}
+        </group>
+      );
     };
 
-    // 4. Meteor Shower (Make a Wish)
+    // 4. Meteor Shower (Full Screen)
     const Meteors = ({ active }) => {
-      const count = 50;
-      const positions = useMemo(() => new Float32Array(count * 3), []);
-      const speeds = useMemo(() => new Float32Array(count), []);
       const meshRef = useRef();
-
-      // Init positions high up
-      useMemo(() => {
-        for(let i=0; i<count; i++) {
-           positions[i*3] = (Math.random() - 0.5) * 30;
-           positions[i*3+1] = 10 + Math.random() * 20;
-           positions[i*3+2] = (Math.random() - 0.5) * 20;
-           speeds[i] = 0.2 + Math.random() * 0.4;
-        }
+      const count = 800; // Large count for full screen
+      const dummy = useMemo(() => new THREE.Object3D(), []);
+      
+      const meteors = useMemo(() => {
+        return new Array(count).fill(0).map(() => ({
+          x: randomRange(-60, 60), // Full width
+          y: randomRange(20, 80),  
+          z: randomRange(-30, 20), // Full depth
+          speed: randomRange(0.8, 2.0),
+          len: randomRange(2, 5)
+        }));
       }, []);
 
       useFrame(() => {
-         if (!active || !meshRef.current) return;
-         for(let i=0; i<count; i++) {
-            // Move down and slightly left
-            positions[i*3] -= speeds[i]; // x
-            positions[i*3+1] -= speeds[i] * 2; // y
-            
-            // Reset if below floor
-            if(positions[i*3+1] < -10) {
-                positions[i*3] = (Math.random() - 0.5) * 30;
-                positions[i*3+1] = 20 + Math.random() * 10;
-            }
-         }
-         meshRef.current.instanceMatrix.needsUpdate = true;
-         // Update matrix for each instance
-         const dummy = new THREE.Object3D();
-         for(let i=0; i<count; i++) {
-            dummy.position.set(positions[i*3], positions[i*3+1], positions[i*3+2]);
-            // Rotate to look like streak
-            dummy.rotation.z = Math.PI / 4;
-            dummy.scale.set(0.05, 1.5, 0.05); // Longer tail
-            dummy.updateMatrix();
-            meshRef.current.setMatrixAt(i, dummy.matrix);
-         }
+        if (!active || !meshRef.current) return;
+        
+        meteors.forEach((m, i) => {
+          m.y -= m.speed;
+          m.x -= m.speed * 0.5; // Diagonal movement
+          
+          if (m.y < -20) {
+            m.y = randomRange(20, 80);
+            m.x = randomRange(-60, 60);
+          }
+          
+          dummy.position.set(m.x, m.y, m.z);
+          dummy.rotation.set(0, 0, Math.PI / 4);
+          dummy.scale.set(0.1, m.len, 0.1);
+          dummy.updateMatrix();
+          meshRef.current.setMatrixAt(i, dummy.matrix);
+        });
+        meshRef.current.instanceMatrix.needsUpdate = true;
       });
 
       if (!active) return null;
 
       return (
         <instancedMesh ref={meshRef} args={[null, null, count]}>
-           <cylinderGeometry args={[0.05, 0, 1, 4]} />
-           <meshBasicMaterial color={COLORS.snow} />
+          <boxGeometry args={[1, 1, 1]} />
+          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.8} />
         </instancedMesh>
       );
     };
 
-    // --- Main App Logic ---
-
+    // --- Main App Component ---
     const App = () => {
       const [shape, setShape] = useState(SHAPES.TREE);
-      const [photos, setPhotos] = useState([]); // Default empty
-      const [activePhoto, setActivePhoto] = useState(null);
       const [wishing, setWishing] = useState(false);
       const [countdown, setCountdown] = useState(null);
-      const [analyser, setAnalyser] = useState(null);
-      
-      // Audio Setup
+      const [activeFact, setActiveFact] = useState(null);
+      const [sceneVisible, setSceneVisible] = useState(true);
+
+      // Music Player
       useEffect(() => {
-        const audioEl = document.getElementById('bg-music');
-        const playMusic = () => {
-             if(audioEl.paused) {
-                 audioEl.play().catch(e => console.log("Audio autoplay blocked", e));
-                 // Context setup
-                 try {
-                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                    const src = ctx.createMediaElementSource(audioEl);
-                    const node = ctx.createAnalyser();
-                    node.fftSize = 64;
-                    src.connect(node);
-                    node.connect(ctx.destination);
-                    
-                    const dataArray = new Uint8Array(node.frequencyBinCount);
-                    setAnalyser({ 
-                        getFrequencyData: () => {
-                            node.getByteFrequencyData(dataArray);
-                            return dataArray;
-                        }
-                    });
-                 } catch(e) { console.warn("Audio Context Error", e); }
-             }
+        const audio = document.getElementById('bg-music');
+        audio.volume = 0.5;
+        const playAudio = () => {
+          audio.play().catch(e => console.log("Audio play failed (interaction needed):", e));
+          window.removeEventListener('click', playAudio);
         };
-        document.body.addEventListener('click', playMusic, { once: true });
+        window.addEventListener('click', playAudio);
+        return () => window.removeEventListener('click', playAudio);
       }, []);
 
-      // Hand Gesture Setup (Keys for fallback)
-      useEffect(() => {
-         const handleKeys = (e) => {
-             if (e.key === '1') setShape(SHAPES.TREE);
-             if (e.key === '2') setShape(SHAPES.SCATTERED);
-             if (e.key === '3') setShape(SHAPES.HEART);
-         };
-         window.addEventListener('keydown', handleKeys);
-         return () => window.removeEventListener('keydown', handleKeys);
-      }, []);
-
-      // Make a Wish Logic with Countdown
-      const handleWish = () => {
-          if(wishing || countdown !== null) return;
-          setCountdown(10);
+      // Music Upload Handler
+      const handleMusicUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const url = URL.createObjectURL(file);
+          const audio = document.getElementById('bg-music');
+          audio.src = url;
+          audio.play();
+        }
       };
 
+      // Make a Wish Logic
+      const handleWish = () => {
+        // 1. Hide Scene
+        setSceneVisible(false);
+        setShape(SHAPES.SCATTERED); // Optionally reset shape or keep current
+        
+        // 2. Start Countdown
+        setCountdown(10);
+      };
+
+      // Countdown Effect
       useEffect(() => {
         if (countdown === null) return;
         
         if (countdown > 0) {
-            const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
-            return () => clearTimeout(timer);
+          const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+          return () => clearTimeout(timer);
         } else {
-            // Countdown finished
+          // Countdown finished -> Start Meteor Shower
+          setWishing(true);
+          const fx = document.getElementById('meteor-fx');
+          fx.volume = 1.0;
+          fx.currentTime = 0;
+          fx.play();
+          
+          // Wait 10s then Restore
+          const restoreTimer = setTimeout(() => {
+            setWishing(false);
             setCountdown(null);
-            setWishing(true);
-            
-            // Play Sound
-            const sound = document.getElementById('meteor-fx');
-            if(sound) {
-                sound.volume = 0.5;
-                sound.currentTime = 0;
-                sound.play().catch(e => console.warn('FX blocked', e));
-            }
-
-            // Stop meteors after 10s
-            setTimeout(() => setWishing(false), 10000);
+            setSceneVisible(true);
+            setShape(SHAPES.TREE); // Go back to tree
+          }, 10000);
+          
+          return () => clearTimeout(restoreTimer);
         }
       }, [countdown]);
 
-      // File Upload Handler
-      const handleFileUpload = (e) => {
-          const file = e.target.files[0];
-          if (file) {
-              const url = URL.createObjectURL(file);
-              setPhotos(prev => [...prev, url]);
-          }
-      };
-      
-      const removeLoader = () => {
-          const loader = document.getElementById('loader');
-          if (loader) {
-             loader.classList.add('fade-out');
-             setTimeout(() => loader.remove(), 1000);
-          }
-      };
-
       return (
         <>
-          {/* Hidden File Input for Custom Photos */}
-          <input 
-             type="file" 
-             accept="image/*" 
-             className="file-upload-overlay" 
-             onChange={handleFileUpload} 
-             title="Upload Photo"
-          />
+          <Canvas camera={{ position: [0, 0, 12], fov: 45 }} gl={{ toneMappingExposure: 2.5 }}>
+            <color attach="background" args={['#000010']} />
+            
+            {/* Ambient Elements (Always Visible) */}
+            <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+            <Sparkles count={500} scale={20} size={2} speed={0.4} opacity={0.5} color="#FFD700" />
+            <ambientLight intensity={0.8} />
+            <pointLight position={[10, 10, 10]} intensity={2.0} />
+            <pointLight position={[-10, -10, -10]} intensity={1.0} />
 
-          {/* Active Photo Overlay */}
-          {activePhoto && (
-            <div 
-                style={{
-                    position: 'absolute', top:0, left:0, width:'100%', height:'100%', 
-                    background:'rgba(0,0,0,0.8)', zIndex: 100, display:'flex', 
-                    justifyContent:'center', alignItems:'center', cursor:'pointer'
-                }}
-                onClick={() => setActivePhoto(null)}
-            >
-                <img src={activePhoto} style={{maxHeight:'80%', maxWidth:'90%', border: '4px solid gold', borderRadius: '10px'}} />
+            {/* Conditionally Visible Scene */}
+            <Suspense fallback={null}>
+              <group visible={sceneVisible}>
+                <MagicParticles shape={shape} />
+                <Decorations shape={shape} />
+                {shape === SHAPES.SCATTERED && <Planets setActiveFact={setActiveFact} />}
+              </group>
+            </Suspense>
+
+            {/* Meteors (Visible during wishing phase) */}
+            <Meteors active={wishing} />
+
+            {/* Post Processing */}
+            <EffectComposer>
+              <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.9} intensity={1.5} />
+              <Vignette eskil={false} offset={0.1} darkness={0.5} />
+            </EffectComposer>
+            
+            <OrbitControls 
+              enableZoom={true} 
+              enablePan={false} 
+              minPolarAngle={Math.PI / 4} 
+              maxPolarAngle={Math.PI / 1.5}
+            />
+          </Canvas>
+
+          {/* --- UI Overlays --- */}
+
+          {/* Top Left Title */}
+          <div className="absolute top-6 left-6 z-10 pointer-events-none">
+            <h1 className="text-3xl font-serif text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-500 drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">
+              Merry Christmas<br/>& Happy New Year!
+            </h1>
+          </div>
+
+          {/* Fact Popup */}
+          {activeFact && (
+            <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/60 backdrop-blur-sm" onClick={() => setActiveFact(null)}>
+              <div className="bg-slate-900/90 border border-slate-700 p-8 rounded-2xl max-w-md text-center shadow-[0_0_50px_rgba(100,200,255,0.2)] transform transition-all scale-100 hover:scale-105">
+                <p className="text-blue-100 text-lg leading-relaxed font-light">{activeFact}</p>
+                <p className="text-slate-500 text-sm mt-4">(Click anywhere to close)</p>
+              </div>
             </div>
           )}
 
           {/* Countdown Overlay */}
-          {countdown !== null && (
-             <div style={{
-                 position: 'absolute', 
-                 top: '40%', 
-                 left: '50%', 
-                 transform: 'translate(-50%, -50%)', 
-                 zIndex: 60,
-                 fontSize: '8rem',
-                 fontWeight: 'bold',
-                 color: '#FFD700',
-                 textShadow: '0 0 30px #FFD700, 0 0 60px #FFA500',
-                 fontFamily: 'serif',
-                 pointerEvents: 'none',
-                 animation: 'pulse 1s infinite'
-             }}>
-                 {countdown}
-             </div>
+          {countdown !== null && countdown > 0 && (
+            <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
+              <div className="text-9xl font-bold text-yellow-100 drop-shadow-[0_0_50px_rgba(255,215,0,1)] countdown-text">
+                {countdown}
+              </div>
+            </div>
           )}
-          
-          {/* Controls UI */}
-          <div style={{position: 'absolute', bottom: 20, left: 20, zIndex: 10, display: 'flex', gap: '10px'}}>
-             <button onClick={() => setShape(SHAPES.TREE)} className="px-4 py-2 bg-green-900/50 text-gold rounded hover:bg-green-800 text-xs text-yellow-500">TREE</button>
-             <button onClick={() => setShape(SHAPES.HEART)} className="px-4 py-2 bg-red-900/50 text-gold rounded hover:bg-red-800 text-xs text-yellow-500">HEART</button>
-             <button onClick={() => setShape(SHAPES.SCATTERED)} className="px-4 py-2 bg-blue-900/50 text-gold rounded hover:bg-blue-800 text-xs text-yellow-500">SCATTER</button>
-          </div>
 
-          {/* Make a Wish Button */}
-          <div style={{
-              position: 'absolute', 
-              bottom: '50px', 
-              width: '100%', 
-              display: 'flex', 
-              justifyContent: 'center', 
-              zIndex: 50, 
-              pointerEvents: 'none'
-          }}>
-            <button 
-               onClick={handleWish}
-               disabled={wishing || countdown !== null}
-               style={{
-                   pointerEvents: 'auto', 
-                   background: 'rgba(255, 215, 0, 0.1)', 
-                   border: '1px solid rgba(255, 215, 0, 0.5)', 
-                   color: '#FFD700', 
-                   padding: '12px 30px', 
-                   borderRadius: '30px', 
-                   cursor: 'pointer', 
-                   fontFamily: 'sans-serif', 
-                   textTransform: 'uppercase', 
-                   letterSpacing: '2px', 
-                   backdropFilter: 'blur(4px)',
-                   fontSize: '0.9rem',
-                   boxShadow: '0 0 15px rgba(255, 215, 0, 0.2)',
-                   transition: 'all 0.3s ease',
-                   opacity: (wishing || countdown !== null) ? 0.5 : 1
-               }}
-               onMouseEnter={(e) => {
-                   if(wishing || countdown !== null) return;
-                   e.target.style.background = 'rgba(255, 215, 0, 0.3)';
-                   e.target.style.boxShadow = '0 0 25px rgba(255, 215, 0, 0.5)';
-               }}
-               onMouseLeave={(e) => {
-                   if(wishing || countdown !== null) return;
-                   e.target.style.background = 'rgba(255, 215, 0, 0.1)';
-                   e.target.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.2)';
-               }}
-            >
-               {wishing ? 'Wishing...' : countdown !== null ? 'Get Ready...' : 'Make a Wish'}
-            </button>
-          </div>
+          {/* Wish Message Overlay */}
+          {wishing && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-50 pointer-events-none p-4">
+              <h1 className="text-5xl md:text-7xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-white to-yellow-200 drop-shadow-[0_0_30px_rgba(253,224,71,0.6)] mb-6 font-serif animate-pulse">
+                Your wish will come true!!!!
+              </h1>
+              {/* Smaller subtitle font size */}
+              <p className="text-sm text-white/80 font-light tracking-[0.2em] drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                我会和你一起实现
+              </p>
+            </div>
+          )}
 
-          <Canvas 
-             camera={{ position: [0, 0, 10], fov: 60 }}
-             onCreated={removeLoader}
-             gl={{ antialias: false, toneMapping: THREE.ReinhardToneMapping, toneMappingExposure: 1.5 }}
-          >
-             <color attach="background" args={[COLORS.midnight]} />
-             
-             {/* Scene Lighting */}
-             <ambientLight intensity={0.5} />
-             <pointLight position={[10, 10, 10]} intensity={1} color={COLORS.gold} />
-             <pointLight position={[-10, -10, -5]} intensity={0.5} color={COLORS.ice} />
-             
-             {/* Background */}
-             <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-             <Sparkles count={200} scale={12} size={2} speed={0.4} opacity={0.5} color={COLORS.ice} />
+          {/* Controls (Hidden during wish) */}
+          {sceneVisible && (
+            <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col items-center justify-end z-40 pointer-events-none">
+              
+              {/* Shape Controls */}
+              <div className="flex gap-4 pointer-events-auto mb-4 bg-black/20 backdrop-blur-md p-3 rounded-full border border-white/10">
+                <button 
+                  onClick={() => setShape(SHAPES.TREE)}
+                  className={`px-6 py-2 rounded-full transition-all duration-300 font-light tracking-widest ${shape === SHAPES.TREE ? 'bg-emerald-500/80 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)]' : 'bg-white/5 text-emerald-200 hover:bg-white/10'}`}
+                >
+                  TREE
+                </button>
+                <button 
+                  onClick={() => setShape(SHAPES.HEART)}
+                  className={`px-6 py-2 rounded-full transition-all duration-300 font-light tracking-widest ${shape === SHAPES.HEART ? 'bg-pink-500/80 text-white shadow-[0_0_20px_rgba(236,72,153,0.5)]' : 'bg-white/5 text-pink-200 hover:bg-white/10'}`}
+                >
+                  HEART
+                </button>
+                <button 
+                  onClick={() => setShape(SHAPES.SCATTERED)}
+                  className={`px-6 py-2 rounded-full transition-all duration-300 font-light tracking-widest ${shape === SHAPES.SCATTERED ? 'bg-blue-500/80 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-white/5 text-blue-200 hover:bg-white/10'}`}
+                >
+                  SCATTER
+                </button>
+              </div>
 
-             {/* Main Content */}
-             <group position={[0, -2, 0]}>
-                <MagicParticles shape={shape} audioAnalyser={analyser} />
-                <Decorations shape={shape} />
-                <PhotoWall shape={shape} photos={photos} onPhotoClick={setActivePhoto} />
-                <Meteors active={wishing} />
-             </group>
+              {/* Music Upload (No Photo Button) */}
+              <div className="pointer-events-auto">
+                <label className="cursor-pointer flex items-center gap-2 text-white/70 hover:text-white transition-colors bg-white/5 px-4 py-1.5 rounded-full border border-white/10 hover:bg-white/10 text-sm">
+                  <span>♫ Upload Music</span>
+                  <input type="file" accept="audio/*" className="hidden" onChange={handleMusicUpload} />
+                </label>
+              </div>
+            </div>
+          )}
 
-             {/* Post Processing */}
-             <EffectComposer disableNormalPass>
-                <Bloom luminanceThreshold={0.5} mipmapBlur intensity={1.5} radius={0.4} />
-                <Vignette eskil={false} offset={0.1} darkness={1.1} />
-             </EffectComposer>
+          {/* Make A Wish Button (Bottom Right) */}
+          {sceneVisible && (
+            <div className="absolute bottom-6 right-6 z-50 pointer-events-auto">
+               <button 
+                  onClick={handleWish}
+                  className="px-6 py-3 rounded-full bg-gradient-to-r from-amber-200 to-yellow-400 text-amber-900 font-bold tracking-wider shadow-[0_0_25px_rgba(251,191,36,0.6)] hover:scale-110 hover:shadow-[0_0_40px_rgba(251,191,36,0.8)] transition-all duration-500 ease-out"
+                >
+                  ✨ MAKE A WISH
+                </button>
+            </div>
+          )}
 
-             <OrbitControls 
-                enablePan={false} 
-                enableZoom={true} 
-                maxDistance={20} 
-                minDistance={5} 
-                autoRotate={shape === SHAPES.TREE && !activePhoto} 
-                autoRotateSpeed={0.5}
-             />
-          </Canvas>
         </>
       );
     };
