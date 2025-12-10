@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,7 +8,7 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Import Map: Modern Stack (Three 0.160.0) -->
+  <!-- Import Map: Pinned React 18.2.0 Stack & Three 0.160.0 -->
   <script type="importmap">
     {
       "imports": {
@@ -62,10 +61,8 @@
 <body>
   <div id="root"></div>
 
-  <!-- Background Music Audio Element -->
-  <audio id="bg-music" loop>
-    <source src="https://cdn.pixabay.com/download/audio/2022/11/22/audio_febc508520.mp3?filename=christmas-magic-127058.mp3" type="audio/mpeg">
-  </audio>
+  <!-- Audio Element for Dynamic Music -->
+  <audio id="bg-music" loop preload="auto" crossorigin="anonymous"></audio>
 
   <!-- Meteor Sound Effect -->
   <audio id="meteor-fx">
@@ -88,6 +85,13 @@
       HEART: 'HEART'
     };
     
+    // --- Songs Configuration (Remote URLs) ---
+    const SONGS = {
+      TREE: "https://raw.githubusercontent.com/lucillewang0706/Music/cdbb3a2d4451e3aa39f21caa494030cf45c76058/All_I_Want_for_Christmas_Is_You.mp3",
+      HEART_GALAXY: "https://raw.githubusercontent.com/lucillewang0706/Music/cdbb3a2d4451e3aa39f21caa494030cf45c76058/Cornfield_Chase.mp3",
+      WISH: "https://raw.githubusercontent.com/lucillewang0706/Music/cdbb3a2d4451e3aa39f21caa494030cf45c76058/Dreamers.mp3"
+    };
+
     // --- Helper Functions ---
     const randomRange = (min, max) => Math.random() * (max - min) + min;
 
@@ -125,45 +129,51 @@
         // Heart Points (Fully Filled Volume)
         const heartPoints = [];
         let attempts = 0;
-        // Increase loop limit to ensure we find enough points for a dense volume
-        while(heartPoints.length < COUNT && attempts < 100000) {
-          attempts++;
-          // Bounding box for heart
-          const x = randomRange(-1.5, 1.5);
-          const y = randomRange(-1.5, 2.0); // Shifted Y for centering
-          const z = randomRange(-0.8, 0.8);
+        
+        // Use a simpler, guaranteed volume fill: Random point in sphere -> scale to heart
+        while(heartPoints.length < COUNT) {
+          // 1. Random point in a sphere
+          const u = Math.random();
+          const v = Math.random();
+          const theta = 2 * Math.PI * u;
+          const phi = Math.acos(2 * v - 1);
+          // Cube root of random for uniform distribution inside volume
+          const r = Math.cbrt(Math.random()); 
           
-          // Scaling for visual size
-          const scale = 1.8; 
-          const x0 = x * scale;
-          const y0 = y * scale;
-          const z0 = z * scale;
+          const sinPhi = Math.sin(phi);
+          const x = r * sinPhi * Math.cos(theta);
+          const y = r * sinPhi * Math.sin(theta);
+          const z = r * Math.cos(phi);
 
-          // Heart Volume Inequality: (x^2 + 9/4y^2 + z^2 - 1)^3 - x^2z^3 - 9/80y^2z^3 <= 0
-          // Adjusted X/Y/Z inputs for the formula logic
-          // Normalize inputs to fit roughly unit heart size for calculation
-          const nx = x;
-          const ny = y - 0.5; // shift down slightly
-          const nz = z;
+          // 2. Transform Sphere to Heart approximation
+          // This is a robust way to fill volume without rejection sampling timing out
+          // Formula approximation: x stays x, y stretches up, z creates depth
+          // We manipulate the sphere point to 'squash' into heart shape
+          
+          // Basic heart profile deformation
+          const yHeart = y * 1.5 - Math.abs(x) * Math.sqrt((20 - Math.abs(x))/15) * 0.5;
+          const zHeart = z * (1 - Math.abs(y)/2.5); // Thin out at bottom
+
+          // Manual tweak to ensure it looks good
+          // Re-using rejection sampling for higher accuracy on the specific math shape
+          // but with much wider bounds check to ensure success
+          
+          const rx = randomRange(-1.5, 1.5);
+          const ry = randomRange(-1.5, 2.0);
+          const rz = randomRange(-1.5, 1.5);
+          
+          const nx = rx;
+          const ny = ry - 0.4;
+          const nz = rz;
           
           const a = nx*nx + (9/4)*ny*ny + nz*nz - 1;
           const term2 = nx*nx * nz*nz*nz;
           const term3 = (9/80)*ny*ny * nz*nz*nz;
-
+          
           if (a*a*a - term2 - term3 <= 0) {
-             heartPoints.push(new THREE.Vector3(x0, y0, z0));
+             const scale = 2.0; // Make it bigger
+             heartPoints.push(new THREE.Vector3(rx * scale, ry * scale, rz * scale));
           }
-        }
-        // If we didn't fill it (rare), fill randomly inside a sphere as fallback
-        while(heartPoints.length < COUNT) {
-             const r = 1.5 * Math.cbrt(Math.random());
-             const theta = Math.random() * 2 * Math.PI;
-             const phi = Math.acos(2 * Math.random() - 1);
-             heartPoints.push(new THREE.Vector3(
-                 r * Math.sin(phi) * Math.cos(theta),
-                 r * Math.sin(phi) * Math.sin(theta),
-                 r * Math.cos(phi)
-             ));
         }
 
         // Scattered Points (Cloud)
@@ -175,9 +185,9 @@
         for (let i = 0; i < COUNT; i++) {
           temp.push({
             tree: treePoints[i],
-            heart: heartPoints[i],
+            heart: heartPoints[i] || new THREE.Vector3(0,0,0),
             scattered: scatteredPoints[i],
-            current: scatteredPoints[i].clone(), // Start scattered
+            current: scatteredPoints[i].clone(),
             speed: randomRange(0.02, 0.05),
             offset: Math.random() * 100
           });
@@ -199,7 +209,7 @@
           // Morphing
           particle.current.lerp(target, 0.03);
 
-          // Breathing/Floating animation
+          // Breathing
           const breathe = Math.sin(time * 2 + particle.offset) * 0.05;
           
           dummy.position.set(
@@ -210,9 +220,7 @@
           
           const scale = (Math.sin(time * 3 + particle.offset) * 0.2 + 0.8) * 0.15;
           dummy.scale.set(scale, scale, scale);
-          
           dummy.rotation.set(time * 0.2, time * 0.1, 0);
-          
           dummy.updateMatrix();
           meshRef.current.setMatrixAt(i, dummy.matrix);
         });
@@ -223,11 +231,11 @@
       return (
         <instancedMesh ref={meshRef} args={[null, null, COUNT]}>
           <dodecahedronGeometry args={[0.2, 0]} />
-          {/* Silver-Green Shimmer Material (Dimmed to 0.15) */}
+          {/* Silver-Green Shimmer (Dimmed) */}
           <meshStandardMaterial 
-            color="#2E8B57"        // SeaGreen
-            emissive="#B0E0E6"     // PowderBlue
-            emissiveIntensity={0.15} // Dimmed to 0.15 as requested
+            color="#2E8B57"        
+            emissive="#B0E0E6"     
+            emissiveIntensity={0.15} 
             roughness={0.6}        
             metalness={0.4}        
             toneMapped={false}
@@ -238,24 +246,23 @@
 
     // 3. Planets (Scattered Mode Decoration)
     const PLANET_FACTS = [
-      "1. 把你体内的DNA搓成一条线的话，它能延伸100亿英里，比地球到冥王星的距离还远。所以光靠你自己就足够离开太阳系了。",
-      "2. 一朵云有多轻呢？大约五十万公斤。",
-      "3. 如果我们能尝到的话，银河系中心尝起来大概会像覆盆子和朗姆酒的味道。",
-      "4. 每个人的体内，都可能拥有来自超新星爆发产生的重元素原子。你我皆是星尘。",
-      "5. 火星上的日落是蓝色的。",
-      "6. 洛希极限是指当天体越过临界距离时，较小天体被潮汐力撕裂成碎片，用一次粉身碎骨换一个永恒的拥抱。"
+      "把你体内的DNA搓成一条线的话，它能延伸100亿英里，比地球到冥王星的距离还远。所以光靠你自己就足够离开太阳系了。",
+      "一朵云有多轻呢？大约五十万公斤。",
+      "如果我们能尝到的话，银河系中心尝起来大概会像覆盆子和朗姆酒的味道。",
+      "每个人的体内，都可能拥有来自超新星爆发产生的重元素原子。你我皆是星尘。",
+      "火星上的日落是蓝色的。",
+      "洛希极限是指当天体越过临界距离时，较小天体被潮汐力撕裂成碎片，用一次粉身碎骨换一个永恒的拥抱。"
     ];
 
     const Planets = ({ setActiveFact }) => {
-      // Fixed positions for even distribution
-      // Reduced size by ~1/3 (approx 0.1 to 0.13)
+      // Tiny glowing planets (Size approx 0.04)
       const planetsData = useMemo(() => [
-        { pos: [0, 6, 0], color: '#FFD700', size: 0.12, id: 0 },   
-        { pos: [0, -6, 0], color: '#4169E1', size: 0.13, id: 1 },   
-        { pos: [-7, 0, 2], color: '#FF69B4', size: 0.1, id: 2 },   
-        { pos: [7, 0, -2], color: '#00FA9A', size: 0.12, id: 3 },  
-        { pos: [2, 2, 6], color: '#FFA500', size: 0.09, id: 4 },   
-        { pos: [-2, -2, -6], color: '#9370DB', size: 0.1, id: 5 }, 
+        { pos: [0, 6, 0], color: '#FFD700', size: 0.04, id: 0 },   
+        { pos: [0, -6, 0], color: '#4169E1', size: 0.045, id: 1 },   
+        { pos: [-7, 0, 2], color: '#FF69B4', size: 0.035, id: 2 },   
+        { pos: [7, 0, -2], color: '#00FA9A', size: 0.04, id: 3 },  
+        { pos: [2, 2, 6], color: '#FFA500', size: 0.03, id: 4 },   
+        { pos: [-2, -2, -6], color: '#9370DB', size: 0.035, id: 5 }, 
       ], []);
 
       return (
@@ -269,7 +276,6 @@
                 onPointerOut={() => document.body.style.cursor = 'auto'}
               >
                 <sphereGeometry args={[data.size, 32, 32]} />
-                {/* Increased emissive intensity to 4.0 for brighter glow on smaller objects */}
                 <meshStandardMaterial 
                   color={data.color} 
                   emissive={data.color} 
@@ -290,30 +296,27 @@
       const letters = useMemo(() => {
         // Tree: "MERRY CHRISTMAS AND HAPPY NEW YEAR"
         const treePhrase = "MERRY CHRISTMAS AND HAPPY NEW YEAR".split("").filter(c => c !== " ");
-        
         // Heart: "THROUGH ALL THE PAIN YOU STILL SHINE"
         const heartPhrase = "THROUGH ALL THE PAIN YOU STILL SHINE".split("").filter(c => c !== " ");
 
         return treePhrase.map((char, i) => {
-          // Spiral positions for Tree
+          // Tree Spiral
           const t = i / treePhrase.length;
           const y = 3.5 - (t * 7); 
           const r = (4 - y) * 0.45 + 0.5;
           const angle = t * Math.PI * 6;
           
-          // Heart curve positions for text decoration (Outer rim)
-          // Keep text on the "rim" so it's readable, while the green stars fill the volume
+          // Heart Curve (Outer rim)
           const tHeart = (i / heartPhrase.length) * Math.PI * 2;
-          // Parametric heart curve for outline
           const hx = 16 * Math.pow(Math.sin(tHeart), 3);
           const hy = 13 * Math.cos(tHeart) - 5 * Math.cos(2*tHeart) - 2 * Math.cos(3*tHeart) - Math.cos(4*tHeart);
           const scale = 0.22; 
 
           return {
             char: char,
-            heartChar: heartPhrase[i % heartPhrase.length], // Fallback
+            heartChar: heartPhrase[i % heartPhrase.length],
             treePos: [Math.cos(angle) * r, y, Math.sin(angle) * r],
-            heartPos: [hx * scale, (hy * scale) + 1, 1.2], // Slightly in front of the filled volume
+            heartPos: [hx * scale, (hy * scale) + 1, 1.2],
             color: Math.random() > 0.5 ? "#FFF8DC" : "#E6E6FA",
             rot: [0, -angle, 0]
           };
@@ -322,7 +325,7 @@
 
       return (
         <group>
-          {/* Tree Topper: Sun */}
+          {/* Tree Topper - Sun */}
           {shape === SHAPES.TREE && (
             <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
               <mesh position={[0, 4.2, 0]}>
@@ -337,7 +340,32 @@
             </Float>
           )}
 
-          {/* Floating Letters */}
+          {/* Glowing "Loading..." in Heart Center */}
+          {shape === SHAPES.HEART && (
+             <Float speed={5} rotationIntensity={0} floatIntensity={0.5}>
+               <Center position={[0, 0, 0]}>
+                 <Text3D
+                    font={fontUrl}
+                    size={0.25}
+                    height={0.05}
+                    curveSegments={12}
+                    bevelEnabled
+                    bevelThickness={0.01}
+                    bevelSize={0.005}
+                 >
+                   Loading...
+                   <meshStandardMaterial 
+                     color="#FFFFE0" 
+                     emissive="#FFFF00" 
+                     emissiveIntensity={2} 
+                     toneMapped={false} 
+                   />
+                 </Text3D>
+               </Center>
+             </Float>
+          )}
+
+          {/* Spiral / Shape Text */}
           {letters.map((item, i) => {
              if (shape === SHAPES.SCATTERED) return null;
 
@@ -352,7 +380,7 @@
                 <Center position={pos} rotation={rot}>
                   <Text3D
                     font={fontUrl}
-                    size={isTree ? 0.15 : 0.1} // Reduced text size: 0.15 for Tree, 0.1 for Heart
+                    size={isTree ? 0.15 : 0.1}
                     height={0.02}
                     curveSegments={12}
                     bevelEnabled
@@ -372,17 +400,17 @@
       );
     };
 
-    // 5. Meteor Shower (Full Screen)
+    // 5. Meteor Shower
     const Meteors = ({ active }) => {
       const meshRef = useRef();
-      const count = 800; // Increased count
+      const count = 800; 
       const dummy = useMemo(() => new THREE.Object3D(), []);
       
       const meteors = useMemo(() => {
         return new Array(count).fill(0).map(() => ({
-          x: randomRange(-80, 80), // Full Screen X
+          x: randomRange(-80, 80), 
           y: randomRange(30, 100), 
-          z: randomRange(-40, 30), // Full Depth Z
+          z: randomRange(-40, 30),
           speed: randomRange(0.8, 2.5),
           len: randomRange(3, 8)
         }));
@@ -394,12 +422,10 @@
         meteors.forEach((m, i) => {
           m.y -= m.speed;
           m.x -= m.speed * 0.5;
-          
           if (m.y < -30) {
             m.y = randomRange(30, 100);
             m.x = randomRange(-80, 80);
           }
-          
           dummy.position.set(m.x, m.y, m.z);
           dummy.rotation.set(0, 0, Math.PI / 4);
           dummy.scale.set(0.1, m.len, 0.1);
@@ -426,62 +452,168 @@
       const [countdown, setCountdown] = useState(null);
       const [activeFact, setActiveFact] = useState(null);
       const [sceneVisible, setSceneVisible] = useState(true);
+      
+      // Audio State
+      const [isPlaying, setIsPlaying] = useState(false); 
+      const [audioLocked, setAudioLocked] = useState(true);
+      const [audioError, setAudioError] = useState(null);
+      
+      const audioRef = useRef(null);
+      const currentTrackRef = useRef(SONGS.TREE);
 
-      // Music Player Setup
+      // --- Music Management ---
+
+      // 1. Initial Setup: Set src and listeners
       useEffect(() => {
         const audio = document.getElementById('bg-music');
+        if (!audio) return;
+        
+        audioRef.current = audio;
+        audio.src = SONGS.TREE; // Default track
         audio.volume = 0.5;
-        const playAudio = () => {
-          audio.play().catch(e => console.log("Audio play failed (interaction needed):", e));
-          window.removeEventListener('click', playAudio);
+
+        // Listener for actual play/pause to sync UI
+        const onPlay = () => setIsPlaying(true);
+        const onPause = () => setIsPlaying(false);
+        const onError = (e) => {
+          console.error("Audio Error Event:", e);
+          const errorCode = audio.error ? audio.error.code : 'unknown';
+          let msg = "Error loading music.";
+          if(errorCode === 4) msg = "Music file not found (404).";
+          if(errorCode === 3) msg = "Decoding error.";
+          setAudioError(msg);
         };
-        window.addEventListener('click', playAudio);
-        return () => window.removeEventListener('click', playAudio);
+
+        audio.addEventListener('play', onPlay);
+        audio.addEventListener('pause', onPause);
+        audio.addEventListener('error', onError);
+
+        // Attempt autoplay
+        const attemptPlay = async () => {
+          try {
+            await audio.play();
+            setAudioLocked(false); // If successful, we are unlocked
+          } catch (err) {
+            console.log("Autoplay blocked, waiting for interaction");
+            setAudioLocked(true);
+          }
+        };
+        attemptPlay();
+
+        return () => {
+          audio.removeEventListener('play', onPlay);
+          audio.removeEventListener('pause', onPause);
+          audio.removeEventListener('error', onError);
+        };
       }, []);
 
-      const handleMusicUpload = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          const url = URL.createObjectURL(file);
-          const audio = document.getElementById('bg-music');
-          audio.src = url;
-          audio.play();
+      // 2. Track Switching Logic
+      useEffect(() => {
+        const audio = audioRef.current;
+        if(!audio) return;
+
+        let targetSrc = SONGS.TREE;
+        
+        if (wishing) {
+          targetSrc = SONGS.WISH;
+        } else {
+          if (shape === SHAPES.TREE) targetSrc = SONGS.TREE;
+          else targetSrc = SONGS.HEART_GALAXY;
+        }
+
+        if (currentTrackRef.current !== targetSrc) {
+           currentTrackRef.current = targetSrc;
+           // Only change src if needed to avoid reloading
+           const wasPlaying = !audio.paused;
+           audio.src = targetSrc;
+           if (wasPlaying) {
+             audio.play().catch(e => console.log("Switch play error", e));
+           }
+        }
+      }, [shape, wishing]);
+
+      // 3. User Interaction to Unlock Audio
+      const handleUnlockAudio = () => {
+        const audio = audioRef.current;
+        if (audio) {
+          audio.play().then(() => {
+            setAudioLocked(false);
+          }).catch(e => {
+            console.log("Still locked or error", e);
+          });
         }
       };
 
+      // 4. Manual Toggle
+      const toggleMusic = () => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        
+        if (!audio.paused) {
+          audio.pause();
+        } else {
+          audio.play().catch(e => {
+            console.log("Play failed", e);
+            // If failed, maybe locked?
+            setAudioLocked(true);
+          });
+        }
+      };
+
+      // Wish Logic
       const handleWish = () => {
         setSceneVisible(false);
         setShape(SHAPES.SCATTERED); 
         setCountdown(10);
       };
 
+      const dismissWish = () => {
+        setWishing(false);
+        setSceneVisible(true);
+        setShape(SHAPES.TREE);
+      };
+
       useEffect(() => {
         if (countdown === null) return;
-        
         if (countdown > 0) {
           const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
           return () => clearTimeout(timer);
         } else {
-          // Countdown Finished -> Meteor Shower
+          // Countdown finished -> Start Meteors
+          setCountdown(null); // Clear countdown first to avoid overlap
           setWishing(true);
           const fx = document.getElementById('meteor-fx');
-          fx.volume = 1.0;
-          fx.currentTime = 0;
-          fx.play();
-          
-          const restoreTimer = setTimeout(() => {
-            setWishing(false);
-            setCountdown(null);
-            setSceneVisible(true);
-            setShape(SHAPES.TREE);
-          }, 10000);
-          
-          return () => clearTimeout(restoreTimer);
+          if(fx) {
+            fx.volume = 1.0;
+            fx.currentTime = 0;
+            fx.play().catch(e => {});
+          }
+          // Manual dismiss only, no auto timeout
         }
       }, [countdown]);
 
       return (
         <>
+          {/* Unlock Overlay: Only shows if browser blocked autoplay */}
+          {audioLocked && !audioError && (
+            <div 
+              className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 cursor-pointer"
+              onClick={handleUnlockAudio}
+            >
+              <div className="text-center animate-pulse">
+                <p className="text-2xl text-yellow-200 font-serif mb-2">Click anywhere to start the magic</p>
+                <p className="text-sm text-white/50">(Tap to enable music)</p>
+              </div>
+            </div>
+          )}
+
+          {/* Audio Error Notification */}
+          {audioError && (
+             <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-red-900/80 text-white px-4 py-2 text-xs z-[100]">
+               {audioError}
+             </div>
+          )}
+
           <Canvas camera={{ position: [0, 0, 15], fov: 60 }} dpr={[1, 2]}>
             <Suspense fallback={<Loader />}>
               <color attach="background" args={['#000010']} />
@@ -497,7 +629,6 @@
                 {shape === SHAPES.SCATTERED && <Planets setActiveFact={setActiveFact} />}
               </group>
 
-              {/* Meteors separate so they show when scene is hidden during wish */}
               <Meteors active={wishing} />
 
               <EffectComposer>
@@ -522,14 +653,25 @@
             </h1>
           </div>
 
-          {/* Bottom Right Controls (Make A Wish & Music) */}
+          {/* Bottom Right Controls */}
           {sceneVisible && (
-            <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-20">
-              {/* Music Upload Button */}
-              <label className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full cursor-pointer transition-all text-sm text-center">
-                ♫ Music
-                <input type="file" accept="audio/*" onChange={handleMusicUpload} className="hidden" />
-              </label>
+            <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-20 items-end">
+              {/* Play/Pause Music Toggle */}
+              <button 
+                onClick={toggleMusic}
+                className={`w-12 h-12 rounded-full border border-white/30 backdrop-blur-md flex items-center justify-center transition-all hover:scale-110 hover:bg-white/20 ${isPlaying ? 'text-green-300' : 'text-white/70'}`}
+                title={isPlaying ? "Pause Music" : "Play Music"}
+              >
+                {isPlaying ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                  </svg>
+                )}
+              </button>
 
               {/* Make a Wish Button */}
               <button 
@@ -541,7 +683,7 @@
             </div>
           )}
 
-          {/* Bottom Center Shape Controls (Only visible when scene is visible) */}
+          {/* Bottom Center Shape Controls */}
           {sceneVisible && (
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-6 z-20">
               <button onClick={() => setShape(SHAPES.TREE)} className={`text-white/80 hover:text-white transition-colors ${shape === SHAPES.TREE ? 'font-bold text-yellow-200' : ''}`}>TREE</button>
@@ -561,14 +703,17 @@
 
           {/* Wish Message Overlay */}
           {wishing && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-50 bg-black/20">
-              <h2 className="text-4xl md:text-6xl text-transparent bg-clip-text bg-gradient-to-r from-yellow-100 via-white to-yellow-100 font-serif drop-shadow-[0_0_30px_rgba(255,255,255,0.8)] animate-pulse mb-4">
+            <div 
+              className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-black/20 cursor-pointer"
+              onClick={dismissWish}
+            >
+              <h2 className="text-4xl md:text-6xl text-transparent bg-clip-text bg-gradient-to-r from-yellow-100 via-white to-yellow-100 font-serif drop-shadow-[0_0_30px_rgba(255,255,255,0.8)] animate-pulse mb-4 pointer-events-none">
                 Your wish will come true!!!!
               </h2>
-              {/* Small Elegant Subtitle */}
-              <p className="text-sm text-white/80 font-light tracking-widest font-serif italic">
+              <p className="text-sm text-white/80 font-light tracking-widest font-serif italic pointer-events-none">
                 我会和你一起实现
               </p>
+              <div className="absolute bottom-10 text-white/30 text-xs pointer-events-none">Click anywhere to return</div>
             </div>
           )}
 
