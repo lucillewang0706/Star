@@ -20,7 +20,8 @@
         "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber",
         "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.0?external=react,react-dom,three,@react-three/fiber",
         "postprocessing": "https://esm.sh/postprocessing@6.34.1?external=three",
-        "uuid": "https://esm.sh/uuid@9.0.1"
+        "uuid": "https://esm.sh/uuid@9.0.1",
+        "@mediapipe/tasks-vision": "https://esm.sh/@mediapipe/tasks-vision@0.10.8"
       }
     }
   </script>
@@ -56,6 +57,40 @@
       -ms-overflow-style: none;
       scrollbar-width: none;
     }
+
+    /* Webcam Container */
+    #webcam-container {
+      position: absolute;
+      top: 80px;
+      right: 24px;
+      width: 160px;
+      height: 120px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      z-index: 40;
+      display: none; /* Hidden by default (I-Mode) */
+      transform: scaleX(-1); /* Mirror effect */
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Floating Emoji Animation */
+    @keyframes floatUp {
+      0% { transform: translateY(100vh) scale(0.5); opacity: 0; }
+      10% { opacity: 1; }
+      100% { transform: translateY(-20vh) scale(1.5); opacity: 0; }
+    }
+    .emoji-particle {
+      position: absolute;
+      font-size: 2rem;
+      pointer-events: none;
+      animation: floatUp 3s linear forwards;
+      z-index: 60;
+    }
   </style>
 </head>
 <body>
@@ -76,6 +111,7 @@
     import { Canvas, useFrame, useThree } from '@react-three/fiber';
     import { OrbitControls, PerspectiveCamera, Stars, Float, Text3D, Center, Sparkles, Html } from '@react-three/drei';
     import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
+    import { GestureRecognizer, FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 
     // --- Constants ---
     const COUNT = 2000;
@@ -128,36 +164,11 @@
 
         // Heart Points (Fully Filled Volume)
         const heartPoints = [];
-        let attempts = 0;
         
         // Use a simpler, guaranteed volume fill: Random point in sphere -> scale to heart
-        while(heartPoints.length < COUNT) {
-          // 1. Random point in a sphere
-          const u = Math.random();
-          const v = Math.random();
-          const theta = 2 * Math.PI * u;
-          const phi = Math.acos(2 * v - 1);
-          // Cube root of random for uniform distribution inside volume
-          const r = Math.cbrt(Math.random()); 
-          
-          const sinPhi = Math.sin(phi);
-          const x = r * sinPhi * Math.cos(theta);
-          const y = r * sinPhi * Math.sin(theta);
-          const z = r * Math.cos(phi);
-
-          // 2. Transform Sphere to Heart approximation
-          // This is a robust way to fill volume without rejection sampling timing out
-          // Formula approximation: x stays x, y stretches up, z creates depth
-          // We manipulate the sphere point to 'squash' into heart shape
-          
-          // Basic heart profile deformation
-          const yHeart = y * 1.5 - Math.abs(x) * Math.sqrt((20 - Math.abs(x))/15) * 0.5;
-          const zHeart = z * (1 - Math.abs(y)/2.5); // Thin out at bottom
-
-          // Manual tweak to ensure it looks good
-          // Re-using rejection sampling for higher accuracy on the specific math shape
-          // but with much wider bounds check to ensure success
-          
+        let safety = 0;
+        while(heartPoints.length < COUNT && safety < 50000) {
+          safety++;
           const rx = randomRange(-1.5, 1.5);
           const ry = randomRange(-1.5, 2.0);
           const rz = randomRange(-1.5, 1.5);
@@ -171,9 +182,14 @@
           const term3 = (9/80)*ny*ny * nz*nz*nz;
           
           if (a*a*a - term2 - term3 <= 0) {
-             const scale = 2.0; // Make it bigger
+             const scale = 2.0; 
              heartPoints.push(new THREE.Vector3(rx * scale, ry * scale, rz * scale));
           }
+        }
+        
+        // Fallback if loop timed out
+        while(heartPoints.length < COUNT) {
+             heartPoints.push(new THREE.Vector3(0,0,0));
         }
 
         // Scattered Points (Cloud)
@@ -255,7 +271,7 @@
     ];
 
     const Planets = ({ setActiveFact }) => {
-      // Tiny glowing planets (Size approx 0.04)
+      // Tiny glowing planets
       const planetsData = useMemo(() => [
         { pos: [0, 6, 0], color: '#FFD700', size: 0.04, id: 0 },   
         { pos: [0, -6, 0], color: '#4169E1', size: 0.045, id: 1 },   
@@ -294,19 +310,15 @@
       const fontUrl = "https://cdn.jsdelivr.net/npm/three/examples/fonts/helvetiker_regular.typeface.json";
       
       const letters = useMemo(() => {
-        // Tree: "MERRY CHRISTMAS AND HAPPY NEW YEAR"
         const treePhrase = "MERRY CHRISTMAS AND HAPPY NEW YEAR".split("").filter(c => c !== " ");
-        // Heart: "THROUGH ALL THE PAIN YOU STILL SHINE"
         const heartPhrase = "THROUGH ALL THE PAIN YOU STILL SHINE".split("").filter(c => c !== " ");
 
         return treePhrase.map((char, i) => {
-          // Tree Spiral
           const t = i / treePhrase.length;
           const y = 3.5 - (t * 7); 
           const r = (4 - y) * 0.45 + 0.5;
           const angle = t * Math.PI * 6;
           
-          // Heart Curve (Outer rim)
           const tHeart = (i / heartPhrase.length) * Math.PI * 2;
           const hx = 16 * Math.pow(Math.sin(tHeart), 3);
           const hy = 13 * Math.cos(tHeart) - 5 * Math.cos(2*tHeart) - 2 * Math.cos(3*tHeart) - Math.cos(4*tHeart);
@@ -325,7 +337,6 @@
 
       return (
         <group>
-          {/* Tree Topper - Sun */}
           {shape === SHAPES.TREE && (
             <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
               <mesh position={[0, 4.2, 0]}>
@@ -340,7 +351,6 @@
             </Float>
           )}
 
-          {/* Glowing "Loading..." in Heart Center */}
           {shape === SHAPES.HEART && (
              <Float speed={5} rotationIntensity={0} floatIntensity={0.5}>
                <Center position={[0, 0, 0]}>
@@ -365,7 +375,6 @@
              </Float>
           )}
 
-          {/* Spiral / Shape Text */}
           {letters.map((item, i) => {
              if (shape === SHAPES.SCATTERED) return null;
 
@@ -453,6 +462,11 @@
       const [activeFact, setActiveFact] = useState(null);
       const [sceneVisible, setSceneVisible] = useState(true);
       
+      // Modes
+      const [mode, setMode] = useState('I'); // 'I' for I-person (No Cam), 'E' for E-person (Cam)
+      const [easterEggActive, setEasterEggActive] = useState(false);
+      const [emojis, setEmojis] = useState([]);
+
       // Audio State
       const [isPlaying, setIsPlaying] = useState(false); 
       const [audioLocked, setAudioLocked] = useState(true);
@@ -461,26 +475,28 @@
       const audioRef = useRef(null);
       const currentTrackRef = useRef(SONGS.TREE);
 
-      // --- Music Management ---
+      // Vision Refs
+      const videoRef = useRef(null);
+      const gestureRecognizerRef = useRef(null);
+      const faceLandmarkerRef = useRef(null);
+      const lastVideoTimeRef = useRef(-1);
+      const requestRef = useRef(null);
 
-      // 1. Initial Setup: Set src and listeners
+      // --- Music Management ---
       useEffect(() => {
         const audio = document.getElementById('bg-music');
         if (!audio) return;
         
         audioRef.current = audio;
-        audio.src = SONGS.TREE; // Default track
+        audio.src = SONGS.TREE;
         audio.volume = 0.5;
 
-        // Listener for actual play/pause to sync UI
         const onPlay = () => setIsPlaying(true);
         const onPause = () => setIsPlaying(false);
         const onError = (e) => {
-          console.error("Audio Error Event:", e);
           const errorCode = audio.error ? audio.error.code : 'unknown';
           let msg = "Error loading music.";
           if(errorCode === 4) msg = "Music file not found (404).";
-          if(errorCode === 3) msg = "Decoding error.";
           setAudioError(msg);
         };
 
@@ -488,13 +504,11 @@
         audio.addEventListener('pause', onPause);
         audio.addEventListener('error', onError);
 
-        // Attempt autoplay
         const attemptPlay = async () => {
           try {
             await audio.play();
-            setAudioLocked(false); // If successful, we are unlocked
+            setAudioLocked(false);
           } catch (err) {
-            console.log("Autoplay blocked, waiting for interaction");
             setAudioLocked(true);
           }
         };
@@ -507,23 +521,19 @@
         };
       }, []);
 
-      // 2. Track Switching Logic
       useEffect(() => {
         const audio = audioRef.current;
         if(!audio) return;
 
         let targetSrc = SONGS.TREE;
-        
-        if (wishing) {
-          targetSrc = SONGS.WISH;
-        } else {
+        if (wishing) targetSrc = SONGS.WISH;
+        else {
           if (shape === SHAPES.TREE) targetSrc = SONGS.TREE;
           else targetSrc = SONGS.HEART_GALAXY;
         }
 
         if (currentTrackRef.current !== targetSrc) {
            currentTrackRef.current = targetSrc;
-           // Only change src if needed to avoid reloading
            const wasPlaying = !audio.paused;
            audio.src = targetSrc;
            if (wasPlaying) {
@@ -532,32 +542,135 @@
         }
       }, [shape, wishing]);
 
-      // 3. User Interaction to Unlock Audio
       const handleUnlockAudio = () => {
         const audio = audioRef.current;
         if (audio) {
-          audio.play().then(() => {
-            setAudioLocked(false);
-          }).catch(e => {
-            console.log("Still locked or error", e);
-          });
+          audio.play().then(() => setAudioLocked(false)).catch(e => {});
         }
       };
 
-      // 4. Manual Toggle
       const toggleMusic = () => {
         const audio = audioRef.current;
         if (!audio) return;
-        
-        if (!audio.paused) {
-          audio.pause();
-        } else {
-          audio.play().catch(e => {
-            console.log("Play failed", e);
-            // If failed, maybe locked?
-            setAudioLocked(true);
-          });
-        }
+        if (!audio.paused) audio.pause();
+        else audio.play().catch(e => setAudioLocked(true));
+      };
+
+      // --- Vision / E-Mode Logic ---
+      
+      // Initialize Models
+      useEffect(() => {
+        const loadModels = async () => {
+          try {
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
+            
+            // Hand Gesture
+            gestureRecognizerRef.current = await GestureRecognizer.createFromOptions(vision, {
+              baseOptions: {
+                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+                delegate: "GPU"
+              },
+              runningMode: "VIDEO",
+              numHands: 1
+            });
+
+            // Face Landmark
+            faceLandmarkerRef.current = await FaceLandmarker.createFromOptions(vision, {
+              baseOptions: {
+                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                delegate: "GPU"
+              },
+              outputFaceBlendshapes: true,
+              runningMode: "VIDEO",
+              numFaces: 1
+            });
+          } catch (error) {
+            console.error("Failed to load MediaPipe models", error);
+          }
+        };
+        loadModels();
+      }, []);
+
+      // Toggle E/I Mode
+      const toggleMode = async () => {
+         if (mode === 'I') {
+            // Switch to E-Mode (Enable Cam)
+            try {
+               const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+               if (videoRef.current) {
+                 videoRef.current.srcObject = stream;
+                 videoRef.current.addEventListener('loadeddata', predictWebcam);
+                 setMode('E');
+               }
+            } catch (err) {
+               alert("Cannot access webcam. Please check permissions.");
+            }
+         } else {
+            // Switch to I-Mode (Disable Cam)
+            if (videoRef.current && videoRef.current.srcObject) {
+               const tracks = videoRef.current.srcObject.getTracks();
+               tracks.forEach(track => track.stop());
+               videoRef.current.srcObject = null;
+            }
+            if (requestRef.current) cancelAnimationFrame(requestRef.current);
+            setMode('I');
+         }
+      };
+
+      // Prediction Loop
+      const predictWebcam = async () => {
+         const video = videoRef.current;
+         const gestureRecognizer = gestureRecognizerRef.current;
+         const faceLandmarker = faceLandmarkerRef.current;
+
+         if (!video || !gestureRecognizer || !faceLandmarker) return;
+
+         let nowInMs = Date.now();
+         if (video.currentTime !== lastVideoTimeRef.current) {
+            lastVideoTimeRef.current = video.currentTime;
+            
+            // 1. Hand Gestures
+            const gestureResult = gestureRecognizer.recognizeForVideo(video, nowInMs);
+            if (gestureResult.gestures.length > 0) {
+               const category = gestureResult.gestures[0][0].categoryName;
+               // Map Gestures
+               if (category === 'Open_Palm') setShape(SHAPES.SCATTERED);
+               else if (category === 'Closed_Fist') setShape(SHAPES.TREE);
+               else if (category === 'Victory' || category === 'ILoveYou' || category === 'Thumb_Up') setShape(SHAPES.HEART);
+               else if (category === 'Pointing_Up') {
+                  // Trigger click/interaction: here we just simulate button click logic by random effect or just console
+                  // For better UX, Pointing Up acts as "Interact" -> Random color shift or just log
+               }
+            }
+
+            // 2. Face Expression (Kiss Easter Egg)
+            const faceResult = faceLandmarker.detectForVideo(video, nowInMs);
+            if (faceResult.faceBlendshapes && faceResult.faceBlendshapes.length > 0 && faceResult.faceBlendshapes[0].categories) {
+               const blendshapes = faceResult.faceBlendshapes[0].categories;
+               const puckerScore = blendshapes.find(s => s.categoryName === 'mouthPucker')?.score || 0;
+               
+               if (puckerScore > 0.5 && !easterEggActive) {
+                  triggerEasterEgg();
+               }
+            }
+         }
+         requestRef.current = requestAnimationFrame(predictWebcam);
+      };
+
+      const triggerEasterEgg = () => {
+         setEasterEggActive(true);
+         // Spawn emojis
+         const newEmojis = Array.from({ length: 20 }).map((_, i) => ({
+            id: i,
+            left: Math.random() * 90 + '%',
+            delay: Math.random() * 1 + 's'
+         }));
+         setEmojis(newEmojis);
+
+         setTimeout(() => {
+            setEasterEggActive(false);
+            setEmojis([]);
+         }, 3000);
       };
 
       // Wish Logic
@@ -579,8 +692,7 @@
           const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
           return () => clearTimeout(timer);
         } else {
-          // Countdown finished -> Start Meteors
-          setCountdown(null); // Clear countdown first to avoid overlap
+          setCountdown(null);
           setWishing(true);
           const fx = document.getElementById('meteor-fx');
           if(fx) {
@@ -588,13 +700,12 @@
             fx.currentTime = 0;
             fx.play().catch(e => {});
           }
-          // Manual dismiss only, no auto timeout
         }
       }, [countdown]);
 
       return (
         <>
-          {/* Unlock Overlay: Only shows if browser blocked autoplay */}
+          {/* Unlock Overlay */}
           {audioLocked && !audioError && (
             <div 
               className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 cursor-pointer"
@@ -611,6 +722,29 @@
           {audioError && (
              <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-red-900/80 text-white px-4 py-2 text-xs z-[100]">
                {audioError}
+             </div>
+          )}
+          
+          {/* Webcam Container (Visible in E-Mode) */}
+          <div id="webcam-container" style={{ display: mode === 'E' ? 'block' : 'none' }}>
+            <video ref={videoRef} autoPlay playsInline muted></video>
+          </div>
+
+          {/* E/I Mode Toggle (Top Right) */}
+          <button 
+             onClick={toggleMode}
+             className="absolute top-6 right-6 z-50 bg-white/10 hover:bg-white/20 backdrop-blur text-white border border-white/30 px-4 py-2 rounded-full font-serif text-sm transition-all"
+          >
+             {mode === 'I' ? 'I人模式 (Cam Off)' : 'E人模式 (Cam On)'}
+          </button>
+
+          {/* Easter Egg Overlay */}
+          {easterEggActive && (
+             <div className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none">
+                <h2 className="text-5xl md:text-7xl text-pink-300 font-bold drop-shadow-lg animate-bounce">恭喜你发现彩蛋！</h2>
+                {emojis.map(e => (
+                   <div key={e.id} className="emoji-particle" style={{ left: e.left, animationDelay: e.delay }}>😘</div>
+                ))}
              </div>
           )}
 
@@ -656,7 +790,6 @@
           {/* Bottom Right Controls */}
           {sceneVisible && (
             <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-20 items-end">
-              {/* Play/Pause Music Toggle */}
               <button 
                 onClick={toggleMusic}
                 className={`w-12 h-12 rounded-full border border-white/30 backdrop-blur-md flex items-center justify-center transition-all hover:scale-110 hover:bg-white/20 ${isPlaying ? 'text-green-300' : 'text-white/70'}`}
@@ -673,7 +806,6 @@
                 )}
               </button>
 
-              {/* Make a Wish Button */}
               <button 
                 onClick={handleWish}
                 className="bg-gradient-to-r from-yellow-200 to-amber-400 text-black font-serif px-8 py-3 rounded-full shadow-[0_0_20px_rgba(255,215,0,0.6)] hover:scale-105 transition-transform"
