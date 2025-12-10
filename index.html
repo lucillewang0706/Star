@@ -130,6 +130,7 @@
 
     // --- Helper Functions ---
     const randomRange = (min, max) => Math.random() * (max - min) + min;
+    const distance = (p1, p2) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
 
     // --- Components ---
 
@@ -164,8 +165,6 @@
 
         // Heart Points (Fully Filled Volume)
         const heartPoints = [];
-        
-        // Use a simpler, guaranteed volume fill: Random point in sphere -> scale to heart
         let safety = 0;
         while(heartPoints.length < COUNT && safety < 50000) {
           safety++;
@@ -186,8 +185,6 @@
              heartPoints.push(new THREE.Vector3(rx * scale, ry * scale, rz * scale));
           }
         }
-        
-        // Fallback if loop timed out
         while(heartPoints.length < COUNT) {
              heartPoints.push(new THREE.Vector3(0,0,0));
         }
@@ -247,7 +244,6 @@
       return (
         <instancedMesh ref={meshRef} args={[null, null, COUNT]}>
           <dodecahedronGeometry args={[0.2, 0]} />
-          {/* Silver-Green Shimmer (Dimmed) */}
           <meshStandardMaterial 
             color="#2E8B57"        
             emissive="#B0E0E6"     
@@ -271,7 +267,6 @@
     ];
 
     const Planets = ({ setActiveFact }) => {
-      // Tiny glowing planets
       const planetsData = useMemo(() => [
         { pos: [0, 6, 0], color: '#FFD700', size: 0.04, id: 0 },   
         { pos: [0, -6, 0], color: '#4169E1', size: 0.045, id: 1 },   
@@ -462,20 +457,18 @@
       const [activeFact, setActiveFact] = useState(null);
       const [sceneVisible, setSceneVisible] = useState(true);
       
-      // Modes
-      const [mode, setMode] = useState('I'); // 'I' for I-person (No Cam), 'E' for E-person (Cam)
+      const [mode, setMode] = useState('I'); 
       const [easterEggActive, setEasterEggActive] = useState(false);
       const [emojis, setEmojis] = useState([]);
 
-      // Audio State
       const [isPlaying, setIsPlaying] = useState(false); 
       const [audioLocked, setAudioLocked] = useState(true);
       const [audioError, setAudioError] = useState(null);
       
       const audioRef = useRef(null);
       const currentTrackRef = useRef(SONGS.TREE);
+      const controlsRef = useRef(null); // For camera manipulation
 
-      // Vision Refs
       const videoRef = useRef(null);
       const gestureRecognizerRef = useRef(null);
       const faceLandmarkerRef = useRef(null);
@@ -558,20 +551,19 @@
 
       // --- Vision / E-Mode Logic ---
       
-      // Initialize Models
       useEffect(() => {
         const loadModels = async () => {
           try {
             const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
             
-            // Hand Gesture
+            // Hand Gesture (Configured for 2 Hands)
             gestureRecognizerRef.current = await GestureRecognizer.createFromOptions(vision, {
               baseOptions: {
                 modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
                 delegate: "GPU"
               },
               runningMode: "VIDEO",
-              numHands: 1
+              numHands: 2 // Enable 2 hands for Heart gesture
             });
 
             // Face Landmark
@@ -591,10 +583,8 @@
         loadModels();
       }, []);
 
-      // Toggle E/I Mode
       const toggleMode = async () => {
          if (mode === 'I') {
-            // Switch to E-Mode (Enable Cam)
             try {
                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                if (videoRef.current) {
@@ -606,7 +596,6 @@
                alert("Cannot access webcam. Please check permissions.");
             }
          } else {
-            // Switch to I-Mode (Disable Cam)
             if (videoRef.current && videoRef.current.srcObject) {
                const tracks = videoRef.current.srcObject.getTracks();
                tracks.forEach(track => track.stop());
@@ -622,6 +611,7 @@
          const video = videoRef.current;
          const gestureRecognizer = gestureRecognizerRef.current;
          const faceLandmarker = faceLandmarkerRef.current;
+         const controls = controlsRef.current;
 
          if (!video || !gestureRecognizer || !faceLandmarker) return;
 
@@ -629,17 +619,76 @@
          if (video.currentTime !== lastVideoTimeRef.current) {
             lastVideoTimeRef.current = video.currentTime;
             
-            // 1. Hand Gestures
+            // 1. Hand Gestures & Tracking
             const gestureResult = gestureRecognizer.recognizeForVideo(video, nowInMs);
-            if (gestureResult.gestures.length > 0) {
-               const category = gestureResult.gestures[0][0].categoryName;
-               // Map Gestures
-               if (category === 'Open_Palm') setShape(SHAPES.SCATTERED);
-               else if (category === 'Closed_Fist') setShape(SHAPES.TREE);
-               else if (category === 'Victory' || category === 'ILoveYou' || category === 'Thumb_Up') setShape(SHAPES.HEART);
-               else if (category === 'Pointing_Up') {
-                  // Trigger click/interaction: here we just simulate button click logic by random effect or just console
-                  // For better UX, Pointing Up acts as "Interact" -> Random color shift or just log
+            const hands = gestureResult.landmarks;
+            const gestures = gestureResult.gestures;
+
+            if (hands.length > 0) {
+               const hand1 = hands[0];
+               // Calculate average X, Y of first hand for camera rotation
+               // MediaPipe coords: x (0 left, 1 right), y (0 top, 1 bottom)
+               // Note: video is mirrored via CSS, but coordinates are raw.
+               
+               // ROTATION LOGIC (Hand Movement)
+               const centerX = hand1[9].x; // Middle finger knuckle
+               const centerY = hand1[9].y;
+               
+               if (controls) {
+                  // Sensitivity factors
+                  const rotSpeed = 0.02;
+                  // Map X (0..1) to rotation. 0.5 is center.
+                  // If hand moves left (x < 0.5), rotate left.
+                  const deltaX = (0.5 - centerX) * 5; // Inverted because camera looks at target
+                  const deltaY = (0.5 - centerY) * 5;
+
+                  controls.setAzimuthalAngle(controls.getAzimuthalAngle() + deltaX * rotSpeed);
+                  controls.setPolarAngle(Math.max(0.1, Math.min(Math.PI - 0.1, controls.getPolarAngle() - deltaY * rotSpeed)));
+               }
+
+               // PINCH ZOOM LOGIC (Single Hand)
+               // Distance between Index Tip (8) and Thumb Tip (4)
+               const pinchDist = distance(hand1[4], hand1[8]);
+               if (controls) {
+                  // Base distance is around 15. 
+                  // If pinch is small (< 0.05), dolly out (zoom out/smaller tree).
+                  // If pinch is large (> 0.15), dolly in (zoom in/bigger tree).
+                  // Only adjust if clearly pinching or spreading
+                  if (pinchDist < 0.05) {
+                     // Move camera away (smaller subject)
+                     controls.object.position.z = Math.min(30, controls.object.position.z + 0.1);
+                  } else if (pinchDist > 0.15) {
+                     // Move camera closer (larger subject)
+                     controls.object.position.z = Math.max(5, controls.object.position.z - 0.1);
+                  }
+               }
+               
+               // GESTURE MAPPING
+               // Priority: Two Hand Heart > Single Hand Gestures
+               let triggerHeart = false;
+
+               // Two Hand Detection
+               if (hands.length === 2) {
+                 const h1 = hands[0];
+                 const h2 = hands[1];
+                 // Check distance between Index Tips (8) and Thumb Tips (4)
+                 const indexDist = distance(h1[8], h2[8]);
+                 const thumbDist = distance(h1[4], h2[4]);
+                 
+                 // Threshold for "touching" tips
+                 if (indexDist < 0.1 && thumbDist < 0.1) {
+                   triggerHeart = true;
+                 }
+               }
+
+               if (triggerHeart) {
+                 setShape(SHAPES.HEART);
+               } else if (gestures.length > 0) {
+                 // Single Hand Fallbacks
+                 const category = gestures[0][0].categoryName;
+                 if (category === 'Open_Palm') setShape(SHAPES.SCATTERED);
+                 else if (category === 'Closed_Fist') setShape(SHAPES.TREE);
+                 // Note: Single hand 'Victory'/'ILoveYou' removed from triggering Heart to strictly enforce two-hand gesture
                }
             }
 
@@ -649,7 +698,8 @@
                const blendshapes = faceResult.faceBlendshapes[0].categories;
                const puckerScore = blendshapes.find(s => s.categoryName === 'mouthPucker')?.score || 0;
                
-               if (puckerScore > 0.5 && !easterEggActive) {
+               // THRESHOLD INCREASED TO 0.95
+               if (puckerScore > 0.95 && !easterEggActive) {
                   triggerEasterEgg();
                }
             }
@@ -659,7 +709,6 @@
 
       const triggerEasterEgg = () => {
          setEasterEggActive(true);
-         // Spawn emojis
          const newEmojis = Array.from({ length: 20 }).map((_, i) => ({
             id: i,
             left: Math.random() * 90 + '%',
@@ -771,6 +820,7 @@
               </EffectComposer>
               
               <OrbitControls 
+                ref={controlsRef}
                 enableZoom={true} 
                 enablePan={false} 
                 rotateSpeed={0.5} 
