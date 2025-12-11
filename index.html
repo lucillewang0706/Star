@@ -115,7 +115,8 @@
     import { GestureRecognizer, FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 
     // --- Constants ---
-    const COUNT = 2000;
+    // PERFORMANCE: Reduced particle count for smoother mobile experience
+    const COUNT = 1500; 
     const SHAPES = {
       SCATTERED: 'SCATTERED',
       TREE: 'TREE',
@@ -291,7 +292,8 @@
                 onPointerOver={() => document.body.style.cursor = 'pointer'}
                 onPointerOut={() => document.body.style.cursor = 'auto'}
               >
-                <sphereGeometry args={[data.size, 32, 32]} />
+                {/* PERFORMANCE: Reduced sphere segments from 32 to 16 */}
+                <sphereGeometry args={[data.size, 16, 16]} />
                 <meshStandardMaterial 
                   color={data.color} 
                   emissive={data.color} 
@@ -340,7 +342,8 @@
           {shape === SHAPES.TREE && (
             <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
               <mesh position={[0, 4.2, 0]}>
-                <sphereGeometry args={[0.3, 32, 32]} />
+                {/* PERFORMANCE: Reduced segments */}
+                <sphereGeometry args={[0.3, 16, 16]} />
                 <meshStandardMaterial 
                   color="#FFD700" 
                   emissive="#FFA500" 
@@ -358,7 +361,7 @@
                     font={fontUrl}
                     size={0.25}
                     height={0.05}
-                    curveSegments={12}
+                    curveSegments={4} // PERFORMANCE: Reduced from 12
                     bevelEnabled
                     bevelThickness={0.01}
                     bevelSize={0.005}
@@ -391,12 +394,12 @@
                     font={fontUrl}
                     size={isTree ? 0.15 : 0.1}
                     height={0.02}
-                    curveSegments={6} // Optimized: Reduced segments
+                    curveSegments={3} // PERFORMANCE: Heavily reduced curve segments for many letters
                     bevelEnabled
                     bevelThickness={0.01}
                     bevelSize={0.002}
                     bevelOffset={0}
-                    bevelSegments={2} // Optimized: Reduced segments
+                    bevelSegments={0} // PERFORMANCE: Reduced bevel segments
                   >
                     {charToRender}
                     <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} toneMapped={false} />
@@ -412,7 +415,8 @@
     // 5. Meteor Shower
     const Meteors = ({ active }) => {
       const meshRef = useRef();
-      const count = 800; 
+      // PERFORMANCE: Reduced meteor count
+      const count = 400; 
       const dummy = useMemo(() => new THREE.Object3D(), []);
       
       const meteors = useMemo(() => {
@@ -483,6 +487,13 @@
       const requestRef = useRef(null);
       const kissStartTimeRef = useRef(0);
       const lastPredictionTimeRef = useRef(0); // Optimization: Throttle MediaPipe
+
+      // Ref tracking to avoid stale closures in animation loop
+      const wishingRef = useRef(wishing);
+      useEffect(() => { wishingRef.current = wishing; }, [wishing]);
+      
+      // Pray gesture debounce/lock
+      const isPrayingRef = useRef(false);
 
       // --- Music Management ---
       useEffect(() => {
@@ -622,9 +633,9 @@
 
          if (!video || !gestureRecognizer || !faceLandmarker) return;
 
-         // OPTIMIZATION: Throttle detection to ~20-25 FPS to save CPU for 3D Rendering (60FPS)
+         // OPTIMIZATION: Throttle detection to ~15 FPS (approx 66ms) to drastically save CPU/GPU for 3D Rendering (60FPS)
          const nowInMs = Date.now();
-         if (nowInMs - lastPredictionTimeRef.current < 40) {
+         if (nowInMs - lastPredictionTimeRef.current < 66) {
             requestRef.current = requestAnimationFrame(predictWebcam);
             return; 
          }
@@ -639,49 +650,68 @@
             const gestures = gestureResult.gestures;
 
             if (hands.length > 0) {
-               const hand1 = hands[0];
-               const centerX = hand1[9].x; 
-               const centerY = hand1[9].y;
                
-               if (controls) {
-                  const rotSpeed = 0.05; // Slightly faster for smoother feel
-                  const deltaX = (0.5 - centerX) * 4; 
-                  const deltaY = (0.5 - centerY) * 4;
+               // --- 2. Victory Gesture (Camera Control) & Basic Shapes ---
+               hands.forEach((hand, index) => {
+                  const gestureData = gestures[index] ? gestures[index][0] : null;
+                  const category = gestureData ? gestureData.categoryName : null;
+                  
+                  // ✌️ Victory Gesture = Camera Joystick
+                  if (category === 'Victory') {
+                     const centerX = hand[9].x; // Middle finger knuckle
+                     const centerY = hand[9].y;
+                     
+                     if (controls) {
+                        const rotSpeed = 0.05; // Slightly faster to compensate for lower sampling
+                        // Map hand position to rotation delta (Joystick style)
+                        // Hand Left (<0.5) -> Rotate Left
+                        // Hand Right (>0.5) -> Rotate Right
+                        // Hand Up (<0.5) -> Look Up
+                        // Hand Down (>0.5) -> Look Down
+                        const deltaX = (0.5 - centerX) * 2; // -1 to 1 approx
+                        const deltaY = (0.5 - centerY) * 2;
 
-                  controls.setAzimuthalAngle(controls.getAzimuthalAngle() + deltaX * rotSpeed);
-                  controls.setPolarAngle(Math.max(0.1, Math.min(Math.PI - 0.1, controls.getPolarAngle() - deltaY * rotSpeed)));
-               }
+                        const curAzimuth = controls.getAzimuthalAngle();
+                        const curPolar = controls.getPolarAngle();
 
-               // Pinch Zoom
-               const pinchDist = distance(hand1[4], hand1[8]);
-               if (controls) {
-                  if (pinchDist < 0.05) {
-                     controls.object.position.z = Math.min(30, controls.object.position.z + 0.2);
-                  } else if (pinchDist > 0.15) {
-                     controls.object.position.z = Math.max(5, controls.object.position.z - 0.2);
-                  }
-               }
-               
-               // Gesture Mapping
-               let triggerHeart = false;
+                        controls.setAzimuthalAngle(curAzimuth + deltaX * rotSpeed);
+                        controls.setPolarAngle(Math.max(0.1, Math.min(Math.PI - 0.1, curPolar - deltaY * rotSpeed)));
+                     }
+                  } 
+                  // Shape Switching
+                  else if (category === 'Open_Palm') setShape(SHAPES.SCATTERED);
+                  else if (category === 'Closed_Fist') setShape(SHAPES.TREE);
+               });
+
+               // --- 1. Pray Gesture (Make a Wish) ---
                if (hands.length === 2) {
-                 const h1 = hands[0];
-                 const h2 = hands[1];
-                 const indexDist = distance(h1[8], h2[8]);
-                 const thumbDist = distance(h1[4], h2[4]);
-                 if (indexDist < 0.1 && thumbDist < 0.1) triggerHeart = true;
-               }
-
-               if (triggerHeart) {
-                 setShape(SHAPES.HEART);
-               } else if (gestures.length > 0) {
-                 const category = gestures[0][0].categoryName;
-                 if (category === 'Open_Palm') setShape(SHAPES.SCATTERED);
-                 else if (category === 'Closed_Fist') setShape(SHAPES.TREE);
+                   const h1 = hands[0];
+                   const h2 = hands[1];
+                   
+                   // Check distance between wrists and index finger tips
+                   const wristDist = distance(h1[0], h2[0]);
+                   const tipDist = distance(h1[12], h2[12]);
+                   
+                   // 🙏 Pray detection heuristic: Wrists close + Middle fingers close
+                   if (wristDist < 0.2 && tipDist < 0.2) {
+                       if (!isPrayingRef.current && !wishingRef.current) {
+                           handleWish();
+                           isPrayingRef.current = true;
+                       }
+                   } else {
+                       isPrayingRef.current = false;
+                   }
+               
+                   // Heart Gesture (Index + Thumb)
+                   const indexDist = distance(h1[8], h2[8]);
+                   const thumbDist = distance(h1[4], h2[4]);
+                   if (indexDist < 0.1 && thumbDist < 0.1) setShape(SHAPES.HEART);
+               } else {
+                   isPrayingRef.current = false;
                }
             }
 
-            // 2. Face Expression
+            // 2. Face Expression (Kiss Easter Egg)
             const faceResult = faceLandmarker.detectForVideo(video, nowInMs);
             if (faceResult.faceBlendshapes && faceResult.faceBlendshapes.length > 0 && faceResult.faceBlendshapes[0].categories) {
                const blendshapes = faceResult.faceBlendshapes[0].categories;
@@ -823,7 +853,8 @@
 
               <Meteors active={wishing} />
 
-              <EffectComposer>
+              {/* PERFORMANCE: Disabled normal pass and multisampling for speed */}
+              <EffectComposer disableNormalPass multisampling={0}>
                 <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.9} height={300} intensity={1.5} />
                 <Vignette eskil={false} offset={0.1} darkness={1.1} />
               </EffectComposer>
