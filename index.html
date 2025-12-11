@@ -79,17 +79,18 @@
     }
 
     /* Floating Emoji Animation */
-    @keyframes floatUp {
-      0% { transform: translateY(100vh) scale(0.5); opacity: 0; }
-      10% { opacity: 1; }
-      100% { transform: translateY(-20vh) scale(1.5); opacity: 0; }
+    @keyframes floatAndFade {
+      0% { transform: translateY(0) scale(0); opacity: 0; }
+      20% { opacity: 1; transform: translateY(-20px) scale(1.2); }
+      100% { transform: translateY(-150px) scale(1.5); opacity: 0; }
     }
     .emoji-particle {
       position: absolute;
-      font-size: 2rem;
+      font-size: 2.5rem;
       pointer-events: none;
-      animation: floatUp 3s linear forwards;
-      z-index: 60;
+      animation: floatAndFade 3s ease-out forwards;
+      z-index: 100;
+      will-change: transform, opacity; /* Optimization */
     }
   </style>
 </head>
@@ -166,6 +167,7 @@
         // Heart Points (Fully Filled Volume)
         const heartPoints = [];
         let safety = 0;
+        // Optimization: Pre-calculate constants to avoid re-calc in loop
         while(heartPoints.length < COUNT && safety < 50000) {
           safety++;
           const rx = randomRange(-1.5, 1.5);
@@ -185,6 +187,7 @@
              heartPoints.push(new THREE.Vector3(rx * scale, ry * scale, rz * scale));
           }
         }
+        // Fallback if heart volume not filled (rare)
         while(heartPoints.length < COUNT) {
              heartPoints.push(new THREE.Vector3(0,0,0));
         }
@@ -213,7 +216,9 @@
         
         const time = state.clock.getElapsedTime();
 
-        particles.forEach((particle, i) => {
+        // Optimization: Use a simple for loop instead of forEach for speed
+        for (let i = 0; i < COUNT; i++) {
+          const particle = particles[i];
           let target;
           if (shape === SHAPES.TREE) target = particle.tree;
           else if (shape === SHAPES.HEART) target = particle.heart;
@@ -236,7 +241,7 @@
           dummy.rotation.set(time * 0.2, time * 0.1, 0);
           dummy.updateMatrix();
           meshRef.current.setMatrixAt(i, dummy.matrix);
-        });
+        }
         
         meshRef.current.instanceMatrix.needsUpdate = true;
       });
@@ -386,12 +391,12 @@
                     font={fontUrl}
                     size={isTree ? 0.15 : 0.1}
                     height={0.02}
-                    curveSegments={12}
+                    curveSegments={6} // Optimized: Reduced segments
                     bevelEnabled
                     bevelThickness={0.01}
                     bevelSize={0.002}
                     bevelOffset={0}
-                    bevelSegments={3}
+                    bevelSegments={2} // Optimized: Reduced segments
                   >
                     {charToRender}
                     <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} toneMapped={false} />
@@ -423,7 +428,9 @@
       useFrame(() => {
         if (!active || !meshRef.current) return;
         
-        meteors.forEach((m, i) => {
+        // Optimized loop
+        for (let i = 0; i < count; i++) {
+          const m = meteors[i];
           m.y -= m.speed;
           m.x -= m.speed * 0.5;
           if (m.y < -30) {
@@ -435,7 +442,7 @@
           dummy.scale.set(0.1, m.len, 0.1);
           dummy.updateMatrix();
           meshRef.current.setMatrixAt(i, dummy.matrix);
-        });
+        }
         meshRef.current.instanceMatrix.needsUpdate = true;
       });
 
@@ -467,13 +474,15 @@
       
       const audioRef = useRef(null);
       const currentTrackRef = useRef(SONGS.TREE);
-      const controlsRef = useRef(null); // For camera manipulation
+      const controlsRef = useRef(null); 
 
       const videoRef = useRef(null);
       const gestureRecognizerRef = useRef(null);
       const faceLandmarkerRef = useRef(null);
       const lastVideoTimeRef = useRef(-1);
       const requestRef = useRef(null);
+      const kissStartTimeRef = useRef(0);
+      const lastPredictionTimeRef = useRef(0); // Optimization: Throttle MediaPipe
 
       // --- Music Management ---
       useEffect(() => {
@@ -556,17 +565,15 @@
           try {
             const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
             
-            // Hand Gesture (Configured for 2 Hands)
             gestureRecognizerRef.current = await GestureRecognizer.createFromOptions(vision, {
               baseOptions: {
                 modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
                 delegate: "GPU"
               },
               runningMode: "VIDEO",
-              numHands: 2 // Enable 2 hands for Heart gesture
+              numHands: 2 
             });
 
-            // Face Landmark
             faceLandmarkerRef.current = await FaceLandmarker.createFromOptions(vision, {
               baseOptions: {
                 modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
@@ -606,7 +613,7 @@
          }
       };
 
-      // Prediction Loop
+      // Prediction Loop with Throttling for Performance
       const predictWebcam = async () => {
          const video = videoRef.current;
          const gestureRecognizer = gestureRecognizerRef.current;
@@ -615,7 +622,14 @@
 
          if (!video || !gestureRecognizer || !faceLandmarker) return;
 
-         let nowInMs = Date.now();
+         // OPTIMIZATION: Throttle detection to ~20-25 FPS to save CPU for 3D Rendering (60FPS)
+         const nowInMs = Date.now();
+         if (nowInMs - lastPredictionTimeRef.current < 40) {
+            requestRef.current = requestAnimationFrame(predictWebcam);
+            return; 
+         }
+         lastPredictionTimeRef.current = nowInMs;
+
          if (video.currentTime !== lastVideoTimeRef.current) {
             lastVideoTimeRef.current = video.currentTime;
             
@@ -626,81 +640,64 @@
 
             if (hands.length > 0) {
                const hand1 = hands[0];
-               // Calculate average X, Y of first hand for camera rotation
-               // MediaPipe coords: x (0 left, 1 right), y (0 top, 1 bottom)
-               // Note: video is mirrored via CSS, but coordinates are raw.
-               
-               // ROTATION LOGIC (Hand Movement)
-               const centerX = hand1[9].x; // Middle finger knuckle
+               const centerX = hand1[9].x; 
                const centerY = hand1[9].y;
                
                if (controls) {
-                  // Sensitivity factors
-                  const rotSpeed = 0.02;
-                  // Map X (0..1) to rotation. 0.5 is center.
-                  // If hand moves left (x < 0.5), rotate left.
-                  const deltaX = (0.5 - centerX) * 5; // Inverted because camera looks at target
-                  const deltaY = (0.5 - centerY) * 5;
+                  const rotSpeed = 0.05; // Slightly faster for smoother feel
+                  const deltaX = (0.5 - centerX) * 4; 
+                  const deltaY = (0.5 - centerY) * 4;
 
                   controls.setAzimuthalAngle(controls.getAzimuthalAngle() + deltaX * rotSpeed);
                   controls.setPolarAngle(Math.max(0.1, Math.min(Math.PI - 0.1, controls.getPolarAngle() - deltaY * rotSpeed)));
                }
 
-               // PINCH ZOOM LOGIC (Single Hand)
-               // Distance between Index Tip (8) and Thumb Tip (4)
+               // Pinch Zoom
                const pinchDist = distance(hand1[4], hand1[8]);
                if (controls) {
-                  // Base distance is around 15. 
-                  // If pinch is small (< 0.05), dolly out (zoom out/smaller tree).
-                  // If pinch is large (> 0.15), dolly in (zoom in/bigger tree).
-                  // Only adjust if clearly pinching or spreading
                   if (pinchDist < 0.05) {
-                     // Move camera away (smaller subject)
-                     controls.object.position.z = Math.min(30, controls.object.position.z + 0.1);
+                     controls.object.position.z = Math.min(30, controls.object.position.z + 0.2);
                   } else if (pinchDist > 0.15) {
-                     // Move camera closer (larger subject)
-                     controls.object.position.z = Math.max(5, controls.object.position.z - 0.1);
+                     controls.object.position.z = Math.max(5, controls.object.position.z - 0.2);
                   }
                }
                
-               // GESTURE MAPPING
-               // Priority: Two Hand Heart > Single Hand Gestures
+               // Gesture Mapping
                let triggerHeart = false;
-
-               // Two Hand Detection
                if (hands.length === 2) {
                  const h1 = hands[0];
                  const h2 = hands[1];
-                 // Check distance between Index Tips (8) and Thumb Tips (4)
                  const indexDist = distance(h1[8], h2[8]);
                  const thumbDist = distance(h1[4], h2[4]);
-                 
-                 // Threshold for "touching" tips
-                 if (indexDist < 0.1 && thumbDist < 0.1) {
-                   triggerHeart = true;
-                 }
+                 if (indexDist < 0.1 && thumbDist < 0.1) triggerHeart = true;
                }
 
                if (triggerHeart) {
                  setShape(SHAPES.HEART);
                } else if (gestures.length > 0) {
-                 // Single Hand Fallbacks
                  const category = gestures[0][0].categoryName;
                  if (category === 'Open_Palm') setShape(SHAPES.SCATTERED);
                  else if (category === 'Closed_Fist') setShape(SHAPES.TREE);
-                 // Note: Single hand 'Victory'/'ILoveYou' removed from triggering Heart to strictly enforce two-hand gesture
                }
             }
 
-            // 2. Face Expression (Kiss Easter Egg)
+            // 2. Face Expression
             const faceResult = faceLandmarker.detectForVideo(video, nowInMs);
             if (faceResult.faceBlendshapes && faceResult.faceBlendshapes.length > 0 && faceResult.faceBlendshapes[0].categories) {
                const blendshapes = faceResult.faceBlendshapes[0].categories;
                const puckerScore = blendshapes.find(s => s.categoryName === 'mouthPucker')?.score || 0;
                
-               // THRESHOLD INCREASED TO 0.95
                if (puckerScore > 0.95 && !easterEggActive) {
-                  triggerEasterEgg();
+                  if (kissStartTimeRef.current === 0) {
+                     kissStartTimeRef.current = Date.now();
+                  } else {
+                     if (Date.now() - kissStartTimeRef.current > 3000) {
+                        triggerEasterEgg();
+                        kissStartTimeRef.current = 0; 
+                     }
+                  }
+               } else {
+                  kissStartTimeRef.current = 0; 
                }
             }
          }
@@ -709,10 +706,13 @@
 
       const triggerEasterEgg = () => {
          setEasterEggActive(true);
-         const newEmojis = Array.from({ length: 20 }).map((_, i) => ({
+         const newEmojis = Array.from({ length: 150 }).map((_, i) => ({
             id: i,
-            left: Math.random() * 90 + '%',
-            delay: Math.random() * 1 + 's'
+            left: Math.random() * 100 + 'vw',
+            top: Math.random() * 100 + 'vh',
+            scale: Math.random() * 1.5 + 0.5,
+            delay: Math.random() * 0.5 + 's',
+            duration: Math.random() * 2 + 2 + 's'
          }));
          setEmojis(newEmojis);
 
@@ -722,7 +722,6 @@
          }, 3000);
       };
 
-      // Wish Logic
       const handleWish = () => {
         setSceneVisible(false);
         setShape(SHAPES.SCATTERED); 
@@ -767,19 +766,17 @@
             </div>
           )}
 
-          {/* Audio Error Notification */}
+          {/* Audio Error */}
           {audioError && (
              <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-red-900/80 text-white px-4 py-2 text-xs z-[100]">
                {audioError}
              </div>
           )}
           
-          {/* Webcam Container (Visible in E-Mode) */}
           <div id="webcam-container" style={{ display: mode === 'E' ? 'block' : 'none' }}>
             <video ref={videoRef} autoPlay playsInline muted></video>
           </div>
 
-          {/* E/I Mode Toggle (Top Right) */}
           <button 
              onClick={toggleMode}
              className="absolute top-6 right-6 z-50 bg-white/10 hover:bg-white/20 backdrop-blur text-white border border-white/30 px-4 py-2 rounded-full font-serif text-sm transition-all"
@@ -787,17 +784,29 @@
              {mode === 'I' ? 'I人模式 (Cam Off)' : 'E人模式 (Cam On)'}
           </button>
 
-          {/* Easter Egg Overlay */}
           {easterEggActive && (
-             <div className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none">
-                <h2 className="text-5xl md:text-7xl text-pink-300 font-bold drop-shadow-lg animate-bounce">恭喜你发现彩蛋！</h2>
+             <div className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none overflow-hidden">
+                <h2 className="absolute text-5xl md:text-7xl text-pink-300 font-bold drop-shadow-lg animate-bounce z-[61]">恭喜你发现彩蛋！</h2>
                 {emojis.map(e => (
-                   <div key={e.id} className="emoji-particle" style={{ left: e.left, animationDelay: e.delay }}>😘</div>
+                   <div 
+                      key={e.id} 
+                      className="emoji-particle" 
+                      style={{ 
+                        left: e.left, 
+                        top: e.top, 
+                        transform: `scale(${e.scale})`,
+                        animationDelay: e.delay,
+                        animationDuration: e.duration 
+                      }}
+                   >
+                     😘
+                   </div>
                 ))}
              </div>
           )}
 
-          <Canvas camera={{ position: [0, 0, 15], fov: 60 }} dpr={[1, 2]}>
+          {/* Optimized Canvas settings: dpr clamped for high-res screens */}
+          <Canvas camera={{ position: [0, 0, 15], fov: 60 }} dpr={[1, 1.5]}>
             <Suspense fallback={<Loader />}>
               <color attach="background" args={['#000010']} />
               <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
@@ -815,7 +824,7 @@
               <Meteors active={wishing} />
 
               <EffectComposer>
-                <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.9} height={300} intensity={1.5} />
+                <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.9} height={300} intensity={1.5} />
                 <Vignette eskil={false} offset={0.1} darkness={1.1} />
               </EffectComposer>
               
@@ -826,18 +835,18 @@
                 rotateSpeed={0.5} 
                 minDistance={5} 
                 maxDistance={30}
+                enableDamping={true}
+                dampingFactor={0.05}
               />
             </Suspense>
           </Canvas>
 
-          {/* Top Left Title */}
           <div className="absolute top-6 left-6 text-white z-10 pointer-events-none">
             <h1 className="text-2xl font-serif tracking-widest text-yellow-100 drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">
               Merry Christmas & Happy New Year!
             </h1>
           </div>
 
-          {/* Bottom Right Controls */}
           {sceneVisible && (
             <div className="absolute bottom-6 right-6 flex flex-col gap-4 z-20 items-end">
               <button 
@@ -865,7 +874,6 @@
             </div>
           )}
 
-          {/* Bottom Center Shape Controls */}
           {sceneVisible && (
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-6 z-20">
               <button onClick={() => setShape(SHAPES.TREE)} className={`text-white/80 hover:text-white transition-colors ${shape === SHAPES.TREE ? 'font-bold text-yellow-200' : ''}`}>TREE</button>
@@ -874,7 +882,6 @@
             </div>
           )}
 
-          {/* Countdown Overlay */}
           {countdown !== null && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
               <div className="text-[15rem] text-yellow-100 countdown-text drop-shadow-[0_0_50px_rgba(255,215,0,0.8)]">
@@ -883,7 +890,6 @@
             </div>
           )}
 
-          {/* Wish Message Overlay */}
           {wishing && (
             <div 
               className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-black/20 cursor-pointer"
@@ -899,7 +905,6 @@
             </div>
           )}
 
-          {/* Planet Fact Overlay */}
           {activeFact && (
             <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/60 backdrop-blur-sm" onClick={() => setActiveFact(null)}>
               <div className="bg-slate-900/90 border border-white/20 p-8 rounded-2xl max-w-lg mx-4 text-center shadow-[0_0_50px_rgba(100,200,255,0.2)]" onClick={e => e.stopPropagation()}>
